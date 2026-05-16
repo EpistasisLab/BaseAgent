@@ -9,23 +9,17 @@ into RDF format that populates the ontology.
 """
 
 import os
-import sys
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import owlready2
 
-# Add ista to Python path if not already installed
-ISTA_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '.ista')
-if os.path.exists(ISTA_PATH) and ISTA_PATH not in sys.path:
-    sys.path.insert(0, ISTA_PATH)
-
 try:
     from ista import FlatFileDatabaseParser, MySQLDatabaseParser
 except ImportError as e:
     logging.error(f"Failed to import ista: {e}")
-    logging.error(f"Please ensure ista is installed at {ISTA_PATH}")
+    logging.error("Please install ista v0.1.1 @ https://github.com/RomanoLab/ista")
     raise
 
 logger = logging.getLogger(__name__)
