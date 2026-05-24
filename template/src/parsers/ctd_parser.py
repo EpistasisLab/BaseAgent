@@ -5,7 +5,6 @@ Downloads the CTD chemical-gene interactions bulk TSV and extracts two
 expression edge types plus the associated node tables:
 
   chemical_nodes.tsv                  — Chemical nodes (MeSH)
-  gene_nodes.tsv                      — Gene nodes (NCBI Gene)
   chemical_increases_expression.tsv   — chemicalIncreasesExpression edges
   chemical_decreases_expression.tsv   — chemicalDecreasesExpression edges
 
@@ -79,9 +78,8 @@ class CTDParser(BaseParser):
         """
         Parse the CTD chemical-gene interactions file.
 
-        Returns a dict with up to four DataFrames:
+        Returns a dict with up to three DataFrames:
           - chemical_nodes
-          - gene_nodes
           - chemical_increases_expression
           - chemical_decreases_expression
         """
@@ -176,23 +174,7 @@ class CTDParser(BaseParser):
         chem_df = chem_df[["chemical_id", "chemical_name", "mesh_id"]].reset_index(drop=True)
         chem_df["source_database"] = "CTD"
 
-        # ---- Build Gene node DataFrame ----
-        gene_df = (
-            df_expr[["GeneID", "GeneSymbol", "OrganismID"]]
-            .drop_duplicates(subset=["GeneID", "OrganismID"])
-            .rename(
-                columns={
-                    "GeneID": "gene_id",
-                    "GeneSymbol": "gene_symbol",
-                    "OrganismID": "organism",
-                }
-            )
-            .copy()
-        )
-        gene_df = gene_df[["gene_id", "gene_symbol", "organism"]].reset_index(drop=True)
-
         logger.info("Chemical nodes : %d", len(chem_df))
-        logger.info("Gene nodes     : %d", len(gene_df))
         logger.info(
             "increases_expression edges : %d  |  decreases_expression edges : %d",
             len(inc_edges),
@@ -202,8 +184,6 @@ class CTDParser(BaseParser):
         result: Dict[str, pd.DataFrame] = {}
         if not chem_df.empty:
             result["chemical_nodes"] = chem_df
-        if not gene_df.empty:
-            result["gene_nodes"] = gene_df
         if not inc_edges.empty:
             result["chemical_increases_expression"] = inc_edges
         if not dec_edges.empty:
@@ -236,11 +216,7 @@ class CTDParser(BaseParser):
                 "chemical_id": "MeSH ID for the chemical (e.g. MESH:D000082)",
                 "chemical_name": "Name of the chemical",
                 "mesh_id": "MeSH identifier (same as chemical_id)",
-            },
-            "gene_nodes": {
-                "gene_id": "NCBI Gene ID",
-                "gene_symbol": "Gene symbol",
-                "organism": "Taxon ID (OrganismID from CTD)",
+                "source_database": "CTD",
             },
             "chemical_increases_expression": {
                 "chemical_id": "Source chemical MeSH ID",
@@ -248,6 +224,7 @@ class CTDParser(BaseParser):
                 "interaction_text": "Full interaction description from CTD",
                 "organism": "Organism taxon ID",
                 "pubmed_ids": "Pipe-separated PubMed IDs supporting the interaction",
+                "source_database": "CTD",
             },
             "chemical_decreases_expression": {
                 "chemical_id": "Source chemical MeSH ID",
@@ -255,5 +232,6 @@ class CTDParser(BaseParser):
                 "interaction_text": "Full interaction description from CTD",
                 "organism": "Organism taxon ID",
                 "pubmed_ids": "Pipe-separated PubMed IDs supporting the interaction",
+                "source_database": "CTD",
             },
         }

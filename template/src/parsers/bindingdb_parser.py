@@ -1,14 +1,23 @@
 """
 BindingDB Parser for the knowledge graph.
 
-Downloads the BindingDB bulk TSV, extracts drug-gene binding relationships
-(chemicalBindsGene) keyed by DrugBank ID and target gene name.
+Downloads the BindingDB bulk TSV and the UniProt human ID-mapping file, then
+extracts drug-gene binding relationships (chemicalBindsGene) keyed by DrugBank
+ID and NCBI Entrez Gene ID.
+
+Target identifiers are resolved via:
+  BindingDB "UniProt (SwissProt) Primary ID of Target Chain 1"
+  → UniProt HUMAN_9606_idmapping_selected.tab.gz (col 0=UniProtKB-AC, col 2=GeneID)
+
+Only Chain 1 UniProt accessions are used; multi-chain complex targets are
+implicitly limited to the first chain. Rows that have no SwissProt accession or
+whose accession carries no Entrez GeneID are dropped (count is logged).
 
 Data Source: https://www.bindingdb.org/rwd/bind/chemsearch/marvin/Download.jsp
 
 Output:
   - drug_binds_gene.tsv: chemicalBindsGene edges with columns
-      drugbank_id | target_name | source
+      drugbank_id | ncbi_gene_id | source_database
 """
 
 import logging
@@ -27,7 +36,7 @@ OUTPUT_NAME = "drug_binds_gene"
 
 # BindingDB column names as they appear in the TSV
 _COL_DRUGBANK = "DrugBank ID of Ligand"
-_COL_TARGET   = "Target Name"
+_COL_UNIPROT  = "UniProt (SwissProt) Primary ID of Target Chain 1"
 _COL_ORGANISM = "Target Source Organism According to Curator or DataSource"
 
 DOWNLOAD_PAGE = (
@@ -35,14 +44,22 @@ DOWNLOAD_PAGE = (
 )
 BASE_URL = "https://www.bindingdb.org"
 
+# UniProt human ID-mapping file (col 0=UniProtKB-AC, col 2=GeneID/EntrezGene)
+_IDMAP_URL  = (
+    "https://ftp.uniprot.org/pub/databases/uniprot/current_release/"
+    "knowledgebase/idmapping/by_organism/HUMAN_9606_idmapping_selected.tab.gz"
+)
+_IDMAP_FILE = "HUMAN_9606_idmapping_selected.tab.gz"
+
 
 class BindingDBParser(BaseParser):
     """
     Parser for BindingDB.
 
     Produces a single output — drug_binds_gene.tsv — containing
-    (drugbank_id, target_name, source) triples for all human-target
-    binding entries that carry a DrugBank identifier.
+    (drugbank_id, ncbi_gene_id, source_database) triples for all human-target
+    binding entries that carry both a DrugBank identifier and a resolvable
+    UniProt SwissProt accession (Chain 1).
     """
 
     def __init__(self, data_dir: str):
@@ -154,8 +171,18 @@ class BindingDBParser(BaseParser):
     # ------------------------------------------------------------------
 
     def download_data(self) -> bool:
-        """Download and extract the BindingDB TSV zip."""
-        # Skip if already extracted
+        """Download the UniProt idmapping file and the BindingDB TSV zip."""
+        # Always ensure the idmapping file is present before checking the TSV
+        idmap_path = Path(self.get_file_path(_IDMAP_FILE))
+        if not idmap_path.exists() or self.force:
+            ok = self._download_large_file(_IDMAP_URL, idmap_path)
+            if not ok:
+                logger.error("Failed to download UniProt idmapping file.")
+                return False
+        else:
+            logger.info("UniProt idmapping file already present; skipping download.")
+
+        # Skip TSV extraction if already done
         if self._find_extracted_tsv() and not self.force:
             logger.info("BindingDB TSV already extracted; skipping download.")
             return True
@@ -211,21 +238,25 @@ class BindingDBParser(BaseParser):
         Filters to:
           - Human (Homo sapiens) targets
           - Rows with a non-empty DrugBank ID
-          - Rows with a non-empty target name
+          - Rows with a non-empty UniProt SwissProt accession (Chain 1)
+          - Accessions that resolve to an Entrez GeneID via UniProt idmapping
 
         Returns:
-            {"drug_binds_gene": DataFrame[drugbank_id, target_name, source]}
+            {"drug_binds_gene": DataFrame[drugbank_id, ncbi_gene_id, source_database]}
         """
         tsv_path = self._find_extracted_tsv()
         if tsv_path is None:
             logger.error("BindingDB TSV not found; run download_data() first.")
             return {}
 
+        idmap_path = Path(self.get_file_path(_IDMAP_FILE))
+        if not idmap_path.exists():
+            logger.error("UniProt idmapping file not found; run download_data() first.")
+            return {}
+
         logger.info(f"Parsing BindingDB from {tsv_path} …")
 
-        # Only load the three columns we need to keep memory usage manageable
-        usecols = [_COL_DRUGBANK, _COL_TARGET, _COL_ORGANISM]
-
+        usecols = [_COL_DRUGBANK, _COL_UNIPROT, _COL_ORGANISM]
         try:
             df = pd.read_csv(
                 tsv_path,
@@ -234,7 +265,7 @@ class BindingDBParser(BaseParser):
                 low_memory=False,
                 on_bad_lines="skip",
                 dtype=str,
-            )
+            ).drop_duplicates(subset=[_COL_DRUGBANK, _COL_UNIPROT])
         except Exception as exc:
             logger.error(f"Failed to read BindingDB TSV: {exc}")
             return {}
@@ -249,29 +280,55 @@ class BindingDBParser(BaseParser):
             df = df[mask_human]
             logger.info(f"After human-target filter: {len(df):,} rows.")
 
-        # --- Require non-empty DrugBank ID ---
+        # --- Require non-empty DrugBank ID (also reject literal "NULL") ---
         df[_COL_DRUGBANK] = df[_COL_DRUGBANK].str.strip()
-        mask_db = df[_COL_DRUGBANK].notna() & (df[_COL_DRUGBANK] != "")
+        mask_db = (
+            df[_COL_DRUGBANK].notna()
+            & (df[_COL_DRUGBANK] != "")
+            & (df[_COL_DRUGBANK].str.upper() != "NULL")
+        )
         df = df[mask_db]
         logger.info(f"After DrugBank ID filter: {len(df):,} rows.")
 
-        # --- Require non-empty target name ---
-        df[_COL_TARGET] = df[_COL_TARGET].str.strip()
-        mask_tgt = df[_COL_TARGET].notna() & (df[_COL_TARGET] != "")
-        df = df[mask_tgt]
-        logger.info(f"After target-name filter: {len(df):,} rows.")
-
-        # --- Rename and add source column ---
-        out = df[[_COL_DRUGBANK, _COL_TARGET]].rename(
-            columns={
-                _COL_DRUGBANK: "drugbank_id",
-                _COL_TARGET:   "target_name",
-            }
+        # --- Require non-empty UniProt accession (also reject literal "NULL") ---
+        df[_COL_UNIPROT] = df[_COL_UNIPROT].str.strip()
+        mask_uniprot = (
+            df[_COL_UNIPROT].notna()
+            & (df[_COL_UNIPROT] != "")
+            & (df[_COL_UNIPROT].str.upper() != "NULL")
         )
-        out["source_database"] = "BindingDB"
+        df = df[mask_uniprot]
+        logger.info(f"After UniProt ID filter: {len(df):,} rows.")
 
-        # --- Deduplicate ---
-        out = out.drop_duplicates(subset=["drugbank_id", "target_name"])
+        # --- Load UniProt idmapping: col 0=UniProtKB-AC, col 2=GeneID ---
+        logger.info(f"Loading UniProt idmapping from {idmap_path} …")
+        idmap = pd.read_csv(
+            idmap_path, sep="\t", header=None, usecols=[0, 2], dtype=str,
+        )
+        idmap.columns = ["uniprot_id", "ncbi_gene_id"]
+        idmap = idmap[
+            idmap["ncbi_gene_id"].notna()
+            & (idmap["ncbi_gene_id"] != "")
+            & (idmap["ncbi_gene_id"] != "-")
+        ]
+        # Sort ascending before dedup so multi-mapping accessions resolve reproducibly
+        idmap = idmap.sort_values("ncbi_gene_id").drop_duplicates(
+            subset="uniprot_id", keep="first"
+        )
+        logger.info(f"Loaded {len(idmap):,} UniProt→GeneID mappings.")
+
+        # --- Join BindingDB UniProt IDs to NCBI Gene IDs ---
+        df = df.rename(columns={_COL_DRUGBANK: "drugbank_id", _COL_UNIPROT: "uniprot_id"})
+        pre_join = len(df)
+        out = df[["drugbank_id", "uniprot_id"]].merge(idmap, on="uniprot_id", how="inner")
+        logger.info(
+            f"UniProt→Gene ID mapping: {len(out):,} mapped, "
+            f"{pre_join - len(out):,} unmapped (no Entrez GeneID)."
+        )
+        
+        out["source_database"] = "BindingDB"
+        out = out[["drugbank_id", "ncbi_gene_id", "source_database"]]
+        out = out.drop_duplicates(subset=["drugbank_id", "ncbi_gene_id"])
         logger.info(f"Final drug_binds_gene edges: {len(out):,} rows.")
 
         return {OUTPUT_NAME: out}
@@ -283,10 +340,7 @@ class BindingDBParser(BaseParser):
                     "DrugBank identifier of the ligand/drug "
                     "(e.g. DB00001)"
                 ),
-                "target_name": (
-                    "Name of the protein target / gene symbol as recorded "
-                    "in BindingDB"
-                ),
+                "ncbi_gene_id": "NCBI Entrez Gene ID of the target gene",
                 "source_database": "Source database name (BindingDB)",
             }
         }

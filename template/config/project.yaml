@@ -27,7 +27,6 @@ project:
 
   ontology:
     base_file: "data/ontology/ontology.rdf"
-    namespace: "http://<your-domain>/ontologies/<project_name>.owl"
     populated_output: "data/output/ontology_populated.rdf"
 
   graph_indexes:
