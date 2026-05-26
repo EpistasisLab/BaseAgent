@@ -8,6 +8,7 @@ ista converts tabular data (TSV/CSV files) and database records
 into RDF format that populates the ontology.
 """
 
+import csv as csv_mod
 import os
 import logging
 from pathlib import Path
@@ -51,6 +52,7 @@ class OntologyPopulator:
         self.data_dir = Path(data_dir)
         self.mysql_config = mysql_config
         self.ontology = None
+        self._pending_edge_props: dict[str, dict] = {}
         if ontology_mappings is None:
             raise ValueError("ontology_mappings must be provided. Load it with load_config() from main.py.")
         self.ontology_mappings = ontology_mappings
@@ -204,6 +206,16 @@ class OntologyPopulator:
                     merge=merge,
                     skip=skip,
                 )
+                if parse_config and source_filename:
+                    rel_type_name = (relationship_type if isinstance(relationship_type, str)
+                                     else relationship_type.name)
+                    self._collect_edge_props(
+                        rel_type_name=rel_type_name,
+                        source_name=source_name,
+                        source_filename=source_filename,
+                        fmt=fmt,
+                        parse_config=parse_config,
+                    )
             else:
                 if not source_table:
                     raise ValueError("source_table required for MySQL parser")
@@ -222,6 +234,60 @@ class OntologyPopulator:
         except Exception as e:
             logger.error(f"Failed to populate relationships for {source_name}.{relationship_type}: {e}")
             return False
+
+    def _collect_edge_props(
+        self,
+        rel_type_name: str,
+        source_name: str,
+        source_filename: str,
+        fmt: str,
+        parse_config: Dict[str, Any],
+    ):
+        """
+        Re-read the source file, resolve IDs via ontology search, and store
+        edge property rows in memory. Written to disk by save_ontology().
+
+        All columns except subject_column_name and object_column_name are
+        captured as edge properties.
+        """
+        source_path = self.data_dir / source_name / source_filename
+        if not source_path.exists():
+            logger.warning(f"Source file not found for edge props: {source_path}")
+            return
+
+        sub_match_prop = parse_config["subject_match_property"].name
+        obj_match_prop = parse_config["object_match_property"].name
+        sub_col = parse_config["subject_column_name"]
+        obj_col = parse_config["object_column_name"]
+        delimiter = "\t" if fmt == "tsv" else ","
+
+        rows = []
+        with open(source_path, newline="") as f:
+            reader = csv_mod.DictReader(f, delimiter=delimiter)
+            edge_property_columns = [c for c in reader.fieldnames if c not in (sub_col, obj_col)]
+            for row in reader:
+                subjects = self.ontology.search(**{sub_match_prop: row[sub_col]})
+                objects = self.ontology.search(**{obj_match_prop: row[obj_col]})
+                if len(subjects) > 1 or len(objects) > 1:
+                    logger.warning(
+                        f"Ambiguous ID in {source_filename}: "
+                        f"{row[sub_col]!r} matched {len(subjects)} subjects, "
+                        f"{row[obj_col]!r} matched {len(objects)} objects — skipping row"
+                    )
+                    continue
+                for sm in subjects:
+                    for om in objects:
+                        record = {"start_id": sm.name, "end_id": om.name}
+                        for col in edge_property_columns:
+                            record[col] = row.get(col, "")
+                        rows.append(record)
+
+        if rows:
+            existing = self._pending_edge_props.setdefault(
+                rel_type_name, {"rows": [], "columns": edge_property_columns}
+            )
+            existing["rows"].extend(rows)
+            logger.info(f"  Collected {len(rows)} edge props for {rel_type_name}")
 
     # ------------------------------------------------------------------
     # Property resolution
@@ -419,7 +485,8 @@ class OntologyPopulator:
 
     def save_ontology(self, output_path: Optional[str] = None) -> str:
         """
-        Save the populated ontology to an RDF file.
+        Save the populated ontology to an RDF file, then write any pending
+        edge property sidecar CSVs to the same directory.
 
         Args:
             output_path: Path to save. If None, overwrites the original.
@@ -433,6 +500,17 @@ class OntologyPopulator:
         logger.info(f"Saving ontology to: {output_path}")
         self.ontology.save(file=output_path, format="rdfxml")
         logger.info(f"Successfully saved ontology to: {output_path}")
+
+        output_dir = Path(output_path).parent
+        for rel_type_name, data in self._pending_edge_props.items():
+            sidecar_path = output_dir / f"edge_props_{rel_type_name}.csv"
+            fieldnames = ["start_id", "end_id"] + data["columns"]
+            with open(sidecar_path, "w", newline="") as f:
+                writer = csv_mod.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(data["rows"])
+            logger.info(f"  Wrote edge props: {sidecar_path.name}")
+
         return output_path
 
     def get_ontology_stats(self) -> Dict[str, int]:

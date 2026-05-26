@@ -12,6 +12,7 @@ Output files:
 
 import csv
 import logging
+import shutil
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -40,6 +41,7 @@ class MemgraphExporter:
         self.rdf_files = rdf_files
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._id_to_type: dict[str, str] = {}
         self.graph = Graph()
 
         for rdf_file in rdf_files:
@@ -64,6 +66,7 @@ class MemgraphExporter:
         total_edges = 0
         node_columns: dict[str, list[str]] = {}
         rel_types: list[str] = []
+        edge_prop_columns: dict[str, list[str]] = {}
 
         # Detect the ontology namespace from the RDF
         ontology_ns = self._detect_namespace()
@@ -79,18 +82,34 @@ class MemgraphExporter:
             logger.info(f"  Exported {len(nodes)} {node_type} nodes -> {filename}")
 
         # --- Export edges ---
-        edges_by_type = self._extract_edges(ontology_ns)
+        edges_by_type, rel_endpoint_types = self._extract_edges(ontology_ns)
         for rel_type, edges in edges_by_type.items():
             filename = f"edges_{rel_type}.csv"
             filepath = self.output_dir / filename
-            self._write_edge_csv(filepath, edges, rel_type)
-            total_edges += len(edges)
+            sidecar = self.output_dir / f"edge_props_{rel_type}.csv"
+
+            if sidecar.exists():
+                # Use sidecar written by populator — it has edge properties
+                shutil.copy2(str(sidecar), str(filepath))
+                with open(filepath, newline="") as f:
+                    rows = list(csv.DictReader(f))
+                all_cols = list(rows[0].keys()) if rows else []
+                extra = [c for c in all_cols if c not in {"start_id", "end_id"}]
+                edge_prop_columns[rel_type] = extra
+                n_edges = len(rows)
+                logger.info(f"  Exported {n_edges} {rel_type} edges (with props: {extra}) -> {filename}")
+                total_edges += n_edges
+            else:
+                self._write_edge_csv(filepath, edges, rel_type)
+                edge_prop_columns[rel_type] = []
+                total_edges += len(edges)
+                logger.info(f"  Exported {len(edges)} {rel_type} edges -> {filename}")
+
             output_files.append(str(filepath))
             rel_types.append(rel_type)
-            logger.info(f"  Exported {len(edges)} {rel_type} edges -> {filename}")
 
         # --- Write Cypher import script ---
-        cypher_path = self._write_cypher_script(node_columns, rel_types)
+        cypher_path = self._write_cypher_script(node_columns, rel_types, rel_endpoint_types, edge_prop_columns)
         output_files.append(str(cypher_path))
         logger.info(f"  Wrote Cypher import script -> {cypher_path.name}")
 
@@ -184,56 +203,63 @@ class MemgraphExporter:
             for nt in node_types:
                 nodes_by_type[nt].append(properties)
 
+        self._id_to_type = {
+            node["id"]: node_type
+            for node_type, nodes in nodes_by_type.items()
+            for node in nodes
+        }
         return dict(nodes_by_type)
 
-    def _extract_edges(self, ontology_ns: Optional[Namespace]) -> Dict[str, list]:
+    def _extract_edges(self, ontology_ns: Optional[Namespace]) -> tuple[Dict[str, list], dict[str, tuple[str, str]]]:
         """
         Extract edges (object property assertions) grouped by relationship type.
 
         Returns:
-            Dict mapping relationship name -> list of edge dicts.
+            Tuple of:
+              - Dict mapping relationship name -> list of edge dicts
+              - Dict mapping relationship name -> (start_node_type, end_node_type)
         """
         edges_by_type = defaultdict(list)
 
-        # Get all object properties defined in the ontology
-        obj_properties = set()
-        for prop in self.graph.subjects(RDF.type, OWL.ObjectProperty):
-            obj_properties.add(str(prop))
-
-        # Also collect properties used in actual triples between individuals
         individual_uris = set(
             str(s) for s in self.graph.subjects(RDF.type, OWL.NamedIndividual)
         )
 
+        def _local_name(uri):
+            if "#" in uri:
+                return uri.rsplit("#", 1)[1]
+            if "/" in uri:
+                return uri.rsplit("/", 1)[1]
+            return uri
+
         for s, p, o in self.graph:
             s_str, p_str, o_str = str(s), str(p), str(o)
 
-            # Skip built-in predicates
             if any(p_str.startswith(ns) for ns in [str(RDF), str(RDFS), str(OWL)]):
                 continue
 
-            # Only edges between individuals (object properties)
             if s_str not in individual_uris or o_str not in individual_uris:
                 continue
 
-            # Extract names
-            def _local_name(uri):
-                if "#" in uri:
-                    return uri.rsplit("#", 1)[1]
-                if "/" in uri:
-                    return uri.rsplit("/", 1)[1]
-                return uri
-
-            rel_type = _local_name(p_str)
-            start_id = _local_name(s_str)
-            end_id = _local_name(o_str)
-
-            edges_by_type[rel_type].append({
-                "start_id": start_id,
-                "end_id": end_id,
+            edges_by_type[_local_name(p_str)].append({
+                "start_id": _local_name(s_str),
+                "end_id": _local_name(o_str),
             })
 
-        return dict(edges_by_type)
+        rel_endpoint_types: dict[str, tuple[str, str]] = {}
+        for rel_type, edges in edges_by_type.items():
+            start_type = end_type = None
+            for edge in edges:
+                if not start_type:
+                    start_type = self._id_to_type.get(edge["start_id"])
+                if not end_type:
+                    end_type = self._id_to_type.get(edge["end_id"])
+                if start_type and end_type:
+                    break
+            if start_type and end_type:
+                rel_endpoint_types[rel_type] = (start_type, end_type)
+
+        return dict(edges_by_type), rel_endpoint_types
 
     def _write_node_csv(self, filepath: Path, nodes: list, node_type: str) -> list[str]:
         """
@@ -279,15 +305,15 @@ class MemgraphExporter:
         self,
         node_columns: dict[str, list[str]],
         rel_types: list[str],
+        rel_endpoint_types: dict[str, tuple[str, str]],
+        edge_prop_columns: dict[str, list[str]],
     ) -> Path:
         """
         Write a Cypher LOAD CSV import script for all exported CSV files.
 
-        Node IDs in this ontology use type-specific prefixes (``gene_*``,
-        ``drug_*``, ``disease_*``, ``pathway_*``), so IDs are globally unique
-        across node types.  MATCH clauses are therefore label-agnostic —
-        correct without label hints, and simpler than inferring domain/range
-        per relationship.
+        MATCH clauses use node labels inferred from the id→type map so that
+        Memgraph can use label+property indexes and avoid full scans, which
+        prevents transaction timeouts on large edge files.
 
         Returns:
             Path to the written ``import.cypher`` file.
@@ -299,9 +325,8 @@ class MemgraphExporter:
             "// obtain the docker container ID for the memgraph instance",
             "// docker ps",
             "// import the knowledge graph to memgraph. This prevents timeouts or silent import errors.",
-            "// docker exec -i <container_id> mgconsole < /abs/path/to/data/output/import.cypher ",
-            "// Note: LOAD CSV parses all values as strings.",
-            " Use ToInteger()/ToFloat() for numeric comparisons.",
+            "// docker exec -i <container_id> mgconsole < /abs/path/to/data/output/import.cypher",
+            "// Note: LOAD CSV parses all values as strings. Use ToInteger()/ToFloat() for numeric comparisons.",
             "",
         ]
 
@@ -324,15 +349,24 @@ class MemgraphExporter:
                 "",
             ]
 
-        # Edge LOAD CSV blocks
+        # Edge LOAD CSV blocks — use labeled MATCH to hit label+property indexes
         for rel_type in rel_types:
+            start_label, end_label = rel_endpoint_types.get(rel_type, ("", ""))
+            start_match = f"MATCH (a:{start_label} {{id: row.start_id}})" if start_label else "MATCH (a {id: row.start_id})"
+            end_match = f"MATCH (b:{end_label} {{id: row.end_id}})" if end_label else "MATCH (b {id: row.end_id})"
+            extra_cols = edge_prop_columns.get(rel_type, [])
+            if extra_cols:
+                prop_map = ", ".join(f"{c}: row.{c}" for c in extra_cols)
+                create = f"CREATE (a)-[:{rel_type} {{{prop_map}}}]->(b);"
+            else:
+                create = f"CREATE (a)-[:{rel_type}]->(b);"
             lines += [
                 f"// Edges: {rel_type}",
                 f'LOAD CSV FROM "{_MEMGRAPH_IMPORT_PREFIX}/edges_{rel_type}.csv"'
                 " WITH HEADER AS row",
-                "MATCH (a {id: row.start_id})",
-                "MATCH (b {id: row.end_id})",
-                f"CREATE (a)-[:{rel_type}]->(b);",
+                start_match,
+                end_match,
+                create,
                 "",
             ]
 
