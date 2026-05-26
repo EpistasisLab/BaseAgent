@@ -81,6 +81,36 @@ Output files appear in `data/output/`:
 
 Logs are written to `kg_build.log`.
 
+## Evaluation
+
+Three scripts in `eval/` compute quality metrics at each pipeline stage. Run them from the disease KG directory after the corresponding pipeline step completes.
+
+| Script | Run after | Required inputs |
+|--------|-----------|-----------------|
+| `eval_after_parser.py` | `--step extract` | `data/processed/<source>/*.tsv` |
+| `eval_after_ontology.py` | `--step populate` | `data/ontology/ontology.rdf` + `data/output/ontology_populated.rdf` |
+| `eval_after_memgraph.py` | `--step export` | `data/output/nodes_*.csv` + `data/output/edges_*.csv` |
+
+```bash
+# After extraction
+python eval/eval_after_parser.py --output report_parser.json
+
+# After ontology population
+python eval/eval_after_ontology.py --output report_ontology.json
+
+# After Memgraph export
+python eval/eval_after_memgraph.py --output report_memgraph.json
+
+# Optional Tier 3 inputs for eval_after_memgraph.py
+python eval/eval_after_memgraph.py \
+    --baseline prev_report.json \       # enables run-to-run entity count delta
+    --omim-genemap genemap2.txt \       # enables disease-gene recall rate
+    --drugbank-tsv drugbank_drugs.tsv \ # enables drug-target coverage
+    --output report_memgraph.json
+```
+
+All scripts print JSON to stdout by default; use `--output` to save to a file.
+
 ## Interactive use (Jupyter)
 
 Open `run_individual_components.ipynb` to run parsers one at a time. This is useful for debugging a specific source without running the full pipeline.
