@@ -32,14 +32,12 @@ logger = logging.getLogger(__name__)
 # where applicable.
 # ---------------------------------------------------------------------------
 GENES_OUTPUT = "genes"                          # → genes.tsv
-DISEASES_OUTPUT = "disease_classifications"     # → disease_classifications.tsv  (ontology_mappings.yaml)
-DISEASE_MAPPINGS_OUTPUT = "disease_mappings"    # → disease_mappings.tsv         (ontology_mappings.yaml)
+DISEASES_OUTPUT = "diseases"                    # → diseases.tsv  (ontology_mappings.yaml)
 GDA_OUTPUT = "gene_disease_associations"        # → gene_disease_associations.tsv
 
 # Raw cache file names written to data/raw/disgenet/
 RAW_GDA_FILE = "api_gene_disease_associations.tsv"
-RAW_DISEASE_CLASSIFICATIONS_FILE = "api_disease_classifications.tsv"
-RAW_DISEASE_MAPPINGS_FILE = "api_disease_mappings.tsv"
+RAW_DISEASES_FILE = "api_diseases.tsv"
 
 API_BASE = "https://api.disgenet.com/api/v1"
 
@@ -69,11 +67,9 @@ class DisGeNETParser(BaseParser):
     genes
         Gene nodes: geneId, geneSymbol, ensemblId, proteinId,
         pLI, DSI, DPI.
-    disease_classifications
-        Disease nodes: diseaseId, diseaseName, diseaseType, diseaseClass,
-        diseaseSemanticType.
-    disease_mappings
-        Disease cross-reference codes: diseaseId, MSH, ICD10, DO, MONDO, …
+    diseases
+        Disease nodes and cross-references: diseaseId, diseaseName,
+        diseaseType, diseaseClass, diseaseSemanticType, MSH, ICD10, DO, …
     gene_disease_associations
         GDA edges: geneId, diseaseId, gdaScore, evidenceIndex,
         numberOfPublications, numberOfSnps.
@@ -144,11 +140,11 @@ class DisGeNETParser(BaseParser):
             return False
 
         raw_gda = self.get_file_path(RAW_GDA_FILE)
-        raw_cls = self.get_file_path(RAW_DISEASE_CLASSIFICATIONS_FILE)
-        raw_map = self.get_file_path(RAW_DISEASE_MAPPINGS_FILE)
 
-        if (Path(raw_gda).exists() and Path(raw_cls).exists()
-                and Path(raw_map).exists() and not self.force):
+        raw_diseases = self.get_file_path(RAW_DISEASES_FILE)
+
+        if (Path(raw_gda).exists() and Path(raw_diseases).exists()
+                and not self.force):
             logger.info("DisGeNET raw files already present; skipping download.")
             return True
 
@@ -195,24 +191,19 @@ class DisGeNETParser(BaseParser):
         gda_df.to_csv(raw_gda, sep="\t", index=False)
         logger.info("✓ Saved %d GDA records → %s", len(gda_df), raw_gda)
 
-        # ---- Step 3: Disease classifications (from normalized GDA data) ----
-        cls_cols = [c for c in ["diseaseId", "diseaseName", "diseaseType",
-                                 "diseaseClass", "diseaseSemanticType"]
-                    if c in gda_df.columns]
-        cls_df = (gda_df[cls_cols].drop_duplicates(subset=["diseaseId"]).copy()
-                  if "diseaseId" in cls_cols
-                  else pd.DataFrame(columns=cls_cols))
-        cls_df.to_csv(raw_cls, sep="\t", index=False)
-        logger.info("✓ Saved %d disease classification records → %s", len(cls_df), raw_cls)
-
-        # ---- Step 4: Disease mappings (vocab codes parsed from diseaseVocabularies) ----
-        map_cols = ["diseaseId"] + [c for c in VOCAB_COLS if c in gda_df.columns]
-        map_df = gda_df[map_cols].drop_duplicates(subset=["diseaseId"]).copy()
+        # ---- Step 3: Combined disease file (classification + vocab mappings) ----
+        disease_cols = [c for c in
+                        ["diseaseId", "diseaseName", "diseaseType",
+                         "diseaseClass", "diseaseSemanticType"] + VOCAB_COLS
+                        if c in gda_df.columns]
+        diseases_df = (gda_df[disease_cols].drop_duplicates(subset=["diseaseId"]).copy()
+                       if "diseaseId" in disease_cols
+                       else pd.DataFrame(columns=disease_cols))
         for col in VOCAB_COLS:
-            if col not in map_df.columns:
-                map_df[col] = None
-        map_df.to_csv(raw_map, sep="\t", index=False)
-        logger.info("✓ Saved %d disease mapping records → %s", len(map_df), raw_map)
+            if col not in diseases_df.columns:
+                diseases_df[col] = None
+        diseases_df.to_csv(raw_diseases, sep="\t", index=False)
+        logger.info("✓ Saved %d disease records → %s", len(diseases_df), raw_diseases)
 
         return True
 
@@ -229,7 +220,7 @@ class DisGeNETParser(BaseParser):
                 prefix, code = entry.split("_", 1)
                 col = _VOCAB_PREFIX_MAP.get(prefix.upper())
                 if col and codes[col] is None:
-                    codes[col] = code
+                    codes[col] = f"DOID:{code}" if col == "DO" else code
         return codes
 
     def _search_disease_cuis(self, terms: List[str]) -> List[str]:
@@ -364,8 +355,7 @@ class DisGeNETParser(BaseParser):
         -------
         dict with keys:
           genes                       Gene nodes
-          disease_classifications     Disease nodes
-          disease_mappings            Disease cross-references
+          diseases                    Disease nodes and cross-references
           gene_disease_associations   GDA edges
         """
         logger.info("Parsing DisGeNET data…")
@@ -376,7 +366,9 @@ class DisGeNETParser(BaseParser):
             logger.warning("No raw GDA file found at %s", raw_gda)
             return {}
 
-        gda_df = self.read_tsv(raw_gda)
+        id_cols = ["diseaseId", "geneId", "ensemblId", "proteinId"] + VOCAB_COLS
+        str_dtypes = {col: str for col in id_cols}
+        gda_df = self.read_tsv(raw_gda, dtype=str_dtypes)
         if gda_df is None or gda_df.empty:
             logger.warning("Raw GDA file is empty or unreadable.")
             return {}
@@ -388,7 +380,6 @@ class DisGeNETParser(BaseParser):
         result: Dict[str, pd.DataFrame] = {
             GENES_OUTPUT: self._build_gene_nodes(gda_df),
             DISEASES_OUTPUT: self._build_disease_nodes(gda_df),
-            DISEASE_MAPPINGS_OUTPUT: self._build_disease_mappings(gda_df),
             GDA_OUTPUT: self._build_gda_edges(gda_df),
         }
 
@@ -418,26 +409,23 @@ class DisGeNETParser(BaseParser):
         return genes[col_order].reset_index(drop=True)
 
     def _build_disease_nodes(self, gda_df: pd.DataFrame) -> pd.DataFrame:
-        cols = ["diseaseId", "diseaseName", "diseaseType", "diseaseClass", "diseaseSemanticType"]
-        present = [c for c in ["diseaseId", "diseaseName", "diseaseType"] if c in gda_df.columns]
-        if "diseaseId" not in present:
+        cols = (["diseaseId", "diseaseName", "diseaseType", "diseaseClass",
+                 "diseaseSemanticType"] + VOCAB_COLS)
+        if "diseaseId" not in gda_df.columns:
             return pd.DataFrame(columns=cols)
+        present = [c for c in cols if c in gda_df.columns]
         diseases = gda_df[present].drop_duplicates(subset=["diseaseId"]).copy()
         for col in cols:
             if col not in diseases.columns:
                 diseases[col] = None
+        # Replace pandas NA strings from dtype=str reads with actual None
+        diseases.replace("nan", None, inplace=True)
+        # Ensure DO values carry the DOID: prefix (raw files may predate this convention)
+        if "DO" in diseases.columns:
+            diseases["DO"] = diseases["DO"].apply(
+                lambda v: f"DOID:{v}" if pd.notna(v) and not str(v).startswith("DOID:") else v
+            )
         return diseases[cols].reset_index(drop=True)
-
-    def _build_disease_mappings(self, gda_df: pd.DataFrame) -> pd.DataFrame:
-        cols = ["diseaseId", "diseaseName"] + VOCAB_COLS
-        if "diseaseId" not in gda_df.columns:
-            return pd.DataFrame(columns=cols)
-        present = [c for c in cols if c in gda_df.columns]
-        mappings = gda_df[present].drop_duplicates(subset=["diseaseId"]).copy()
-        for col in cols:
-            if col not in mappings.columns:
-                mappings[col] = None
-        return mappings[cols].reset_index(drop=True)
 
     def _build_gda_edges(self, gda_df: pd.DataFrame) -> pd.DataFrame:
         cols = ["geneId", "diseaseId", "gdaScore",
@@ -470,17 +458,13 @@ class DisGeNETParser(BaseParser):
                 "diseaseType": "Disease type (disease, group, phenotype)",
                 "diseaseClass": "Disease class (MeSH hierarchy code)",
                 "diseaseSemanticType": "UMLS semantic type",
-            },
-            DISEASE_MAPPINGS_OUTPUT: {
-                "diseaseId": "Disease identifier (UMLS CUI)",
-                "diseaseName": "Disease name",
                 "MSH": "MeSH code",
                 "ICD10": "ICD-10 code",
                 "NCI": "NCI Thesaurus code",
                 "OMIM": "OMIM identifier",
                 "ICD9CM": "ICD-9-CM code",
                 "HPO": "Human Phenotype Ontology code",
-                "DO": "Disease Ontology identifier",
+                "DO": "Disease Ontology identifier (DOID:XXXXXXX format)",
                 "MONDO": "MONDO identifier",
                 "UMLS": "UMLS CUI cross-reference",
                 "EFO": "Experimental Factor Ontology code",

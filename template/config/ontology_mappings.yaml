@@ -111,10 +111,13 @@ mappings:
         symptoms: diseaseSymptoms
         source_database: sourceDatabase
 
-  disgenet.disease_mappings:
+  # ---------------------------------------------------------------------------
+  # DisGeNET - Gene-Disease Associations
+  # ---------------------------------------------------------------------------
+  disgenet.diseases:
     data_type: node
     node_type: Disease
-    source_filename: disease_mappings.tsv
+    source_filename: diseases.tsv
     merge: true
     skip: false
     parse_config:
@@ -124,6 +127,8 @@ mappings:
         source_column_name: diseaseId
         data_property: xrefUmlsCUI
       data_property_map:
+        diseaseId: xrefUmlsCUI
+        diseaseName: commonName
         DO: xrefDiseaseOntology
         source_database: sourceDatabase
 
