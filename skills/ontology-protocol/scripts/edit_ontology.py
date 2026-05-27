@@ -91,8 +91,13 @@ def _remove_rdf_block(rdf_text: str, owl_type: str, name: str, base_iri: str) ->
         raise ValueError(f"{owl_type} '{name}' not found in the ontology.")
 
     escaped_iri = re.escape(_iri(name, base_iri))
+    escaped_type = re.escape(owl_type)
+    # Two alternatives: full block (children + closing tag) or self-closing opening tag.
+    # The original |/> alternation was too broad — it matched child element />
+    # before the block's own closing tag, leaving trailing children as stray content.
     pattern = re.compile(
-        rf"{re.escape(_SEPARATOR)}    <!-- {escaped_iri} -->.*?(?:</{re.escape(owl_type)}>|/>)",
+        rf"{re.escape(_SEPARATOR)}    <!-- {escaped_iri} -->"
+        rf"(?:.*?</{escaped_type}>|\n\n    <{escaped_type}[^>]*/>)",
         re.DOTALL,
     )
     result, n = pattern.subn("", rdf_text, count=1)
