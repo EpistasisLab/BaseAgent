@@ -50,25 +50,9 @@ mappings:
         source_database: sourceDatabase
 
   # ---------------------------------------------------------------------------
-  # AOP-DB - Adverse Outcome Pathway Database
+  # Reactome - Pathway Information
   # ---------------------------------------------------------------------------
-  aopdb.drugs:
-    data_type: node
-    node_type: Drug
-    source_filename: drugs.tsv
-    merge: true
-    skip: false
-    parse_config:
-      headers: true
-      iri_column_name: DTX_id
-      data_property_map:
-        ChemicalID: xrefMeSH
-        source_database: sourceDatabase
-      merge_column:
-        source_column_name: DTX_id
-        data_property: xrefDTXSID
-
-  aopdb.pathways:
+  reactome.pathways:
     data_type: node
     node_type: Pathway
     source_filename: pathways.tsv
@@ -76,12 +60,13 @@ mappings:
     skip: false
     parse_config:
       headers: true
-      iri_column_name: path_iri
+      iri_column_name: reactome_id
       data_property_map:
-        path_id: pathwayId
-        path_name: pathwayName
-        ext_source: sourceDatabase
+        reactome_id: xrefReactomePathway
+        pathway_name: pathwayName
+        species: species
         source_database: sourceDatabase
+
 
   # ---------------------------------------------------------------------------
   # Disease Ontology - Slim Terms (Top Cancer Nodes + common GWAS Catalog diseases)
@@ -182,14 +167,11 @@ mappings:
     data_type: node
     node_type: TranscriptionFactor
     source_filename: transcription_factors.tsv
-    merge: true
+    merge: false
     skip: false
     parse_config:
       headers: true
       iri_column_name: tf_symbol
-      merge_column:
-        source_column_name: tf_symbol
-        data_property: TF
       data_property_map:
         tf_symbol: TF
         source_database: sourceDatabase
@@ -222,7 +204,7 @@ mappings:
     data_type: node
     node_type: Symptom
     source_filename: symptom_nodes.tsv
-    merge: true
+    merge: false
     skip: false
     parse_config:
       headers: true
@@ -231,9 +213,6 @@ mappings:
         mesh_id: xrefMeSH
         mesh_name: commonName
         sourceDatabase: sourceDatabase
-      merge_column:
-        source_column_name: mesh_id
-        data_property: xrefMeSH
 
   # ---------------------------------------------------------------------------
   # DrugCentral - Drug Information, Classification, and Effects
@@ -374,11 +353,26 @@ mappings:
         data_property: xrefMeSH
         source_column_name: chemical_id
 
+  # ---------------------------------------------------------------------------
+  # AOP-DB - Adverse Outcome Pathway Database
+  # ---------------------------------------------------------------------------
+  aopdb.drugs:
+    data_type: node
+    node_type: Drug
+    source_filename: drugs.tsv
+    merge: true
+    skip: false
+    parse_config:
+      headers: true
+      iri_column_name: DTX_id
+      data_property_map:
+        ChemicalID: xrefMeSH
+        source_database: sourceDatabase
+      merge_column:
+        source_column_name: DTX_id
+        data_property: xrefDTXSID
 
-  # ---------------------------------------------------------------------------
-  # Reactome - Pathway Information
-  # ---------------------------------------------------------------------------
-  reactome.pathways:
+  aopdb.pathways:
     data_type: node
     node_type: Pathway
     source_filename: pathways.tsv
@@ -386,12 +380,13 @@ mappings:
     skip: false
     parse_config:
       headers: true
-      iri_column_name: reactome_id
+      iri_column_name: path_iri
       data_property_map:
-        reactome_id: xrefReactomePathway
-        pathway_name: pathwayName
-        species: species
+        path_id: pathwayId
+        path_name: pathwayName
+        ext_source: sourceDatabase
         source_database: sourceDatabase
+
 
 
   # RELATIONSHIP POPULATIONS
@@ -571,8 +566,8 @@ mappings:
     parse_config:
       headers: true
       subject_node_type: Gene
-      subject_column_name: entrez_gene_id
-      subject_match_property: xrefNcbiGene
+      subject_column_name: gene_symbol
+      subject_match_property: geneSymbol
       object_node_type: BiologicalProcess
       object_column_name: go_id
       object_match_property: xrefGeneOntology
@@ -591,8 +586,8 @@ mappings:
     parse_config:
       headers: true
       subject_node_type: Gene
-      subject_column_name: entrez_gene_id
-      subject_match_property: xrefNcbiGene
+      subject_column_name: gene_symbol
+      subject_match_property: geneSymbol
       object_node_type: MolecularFunction
       object_column_name: go_id
       object_match_property: xrefGeneOntology
@@ -611,8 +606,8 @@ mappings:
     parse_config:
       headers: true
       subject_node_type: Gene
-      subject_column_name: entrez_gene_id
-      subject_match_property: xrefNcbiGene
+      subject_column_name: gene_symbol
+      subject_match_property: geneSymbol
       object_node_type: CellularComponent
       object_column_name: go_id
       object_match_property: xrefGeneOntology
