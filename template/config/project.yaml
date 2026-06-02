@@ -110,11 +110,10 @@ project:
 
   edge_types:
     # Active: parsers exist and produce these edge types
-    - diseaseAssociatesWithGene
+    - geneAssociatesWithDisease
     - geneInPathway
     - geneInteractsWithGene
     - geneCovariesWithGene
-    - geneRegulatesGene
     - geneParticipatesInBiologicalProcess
     - geneHasMolecularFunction
     - geneAssociatedWithCellularComponent
@@ -133,7 +132,8 @@ project:
     - pathwayContainsGene
     - anatomyExpressesGene
     # Inactive: defined in ontology but no parser produces these yet
-    # - geneAssociatesWithDisease
+    # - geneRegulatesGene
+    # - diseaseAssociatesWithGene
     # - chemicalAssociatesWithDisease
     # - bodyPartExpressesGene
     # - bodyPartOverexpressesGene
