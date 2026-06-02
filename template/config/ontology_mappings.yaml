@@ -145,7 +145,7 @@ mappings:
     data_type: node
     node_type: Drug
     source_filename: drugs.tsv
-    merge: true
+    merge: false
     skip: false
     parse_config:
       headers: true
@@ -156,9 +156,6 @@ mappings:
         drug_name: commonName
         inchikey: inchiKey
         source_database: sourceDatabase
-      merge_column:
-        source_column_name: cas_number
-        data_property: xrefCasRN
 
   # ---------------------------------------------------------------------------
   # CollectTRI - Transcription Factor Regulatory Network
