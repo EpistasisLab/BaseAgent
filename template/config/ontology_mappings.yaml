@@ -270,7 +270,7 @@ mappings:
       headers: true
       iri_column_name: adverse_effect_id
       data_property_map:
-        adverse_effect_id: xrefMeSH
+        adverse_effect_id: xrefMedDRA
         adverse_effect_name: commonName
         source_database: sourceDatabase
       unique_rows: true
@@ -547,7 +547,7 @@ mappings:
       subject_match_property: xrefDrugCentralID
       object_node_type: ChemicalEffect
       object_column_name: adverse_effect_id
-      object_match_property: xrefMeSH
+      object_match_property: xrefMedDRA
       data_property_map:
         drug_ae: support
         source_database: sourceDatabase

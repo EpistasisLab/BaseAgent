@@ -41,7 +41,7 @@ project:
     Symptom: ["commonName", "xrefMeSH", "sourceDatabase"]
     TranscriptionFactor: ["TF"]
     DrugClass: ["pharma_class_name"]
-    ChemicalEffect: ["commonName", "xrefMeSH"]
+    ChemicalEffect: ["commonName", "xrefMedDRA"]
 
   node_types:
     # Active: parsers exist and produce these node types
@@ -271,7 +271,7 @@ project:
     # ChemicalEffect properties
     ChemicalEffect:
       - commonName
-      - xrefMeSH
+      - xrefMedDRA
     
     # Symptom properties
     Symptom:

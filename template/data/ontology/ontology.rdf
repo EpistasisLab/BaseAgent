@@ -1580,6 +1580,17 @@ Furthermore, this is beneficial when the ontology is used to populate a graph da
     
 
 
+    <!-- http://example.org/ontologies/kg.owl#xrefMedDRA -->
+
+    <owl:DatatypeProperty rdf:about="http://example.org/ontologies/kg.owl#xrefMedDRA">
+        <rdfs:subPropertyOf rdf:resource="http://example.org/ontologies/kg.owl#dbXref"/>
+        <rdfs:domain rdf:resource="http://www.w3.org/2002/07/owl#Thing"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:comment>MedDRA (Medical Dictionary for Regulatory Activities) Preferred Term code.</rdfs:comment>
+    </owl:DatatypeProperty>
+
+
+
     <!-- http://example.org/ontologies/kg.owl#xrefMeSHParents -->
 
     <owl:DatatypeProperty rdf:about="http://example.org/ontologies/kg.owl#xrefMeSHParents">
