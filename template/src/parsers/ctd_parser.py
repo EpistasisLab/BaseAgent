@@ -1,14 +1,16 @@
 """
 CTD (Comparative Toxicogenomics Database) Parser for the knowledge graph.
 
-Downloads the CTD chemical-gene interactions bulk TSV and extracts two
-expression edge types plus the associated node tables:
+Downloads two CTD bulk files and extracts expression edges plus chemical nodes
+enriched with cross-reference identifiers:
 
-  chemical_nodes.tsv                  — Chemical nodes (MeSH)
+  chemical_nodes.tsv                  — Chemical nodes with CAS, PubChem, InChIKey, DTXSID
   chemical_increases_expression.tsv   — chemicalIncreasesExpression edges
   chemical_decreases_expression.tsv   — chemicalDecreasesExpression edges
 
-Data Source: http://ctdbase.org/reports/CTD_chem_gene_ixns.tsv.gz
+Data Sources:
+  http://ctdbase.org/reports/CTD_chem_gene_ixns.tsv.gz   (interactions)
+  http://ctdbase.org/reports/CTD_chemicals.tsv.gz         (chemical vocabulary)
 """
 
 import logging
@@ -33,9 +35,11 @@ class CTDParser(BaseParser):
     """
 
     CTD_URL = "http://ctdbase.org/reports/CTD_chem_gene_ixns.tsv.gz"
+    CTD_CHEM_URL = "http://ctdbase.org/reports/CTD_chemicals.tsv.gz"
     _FILENAME = "CTD_chem_gene_ixns.tsv.gz"
+    _CHEM_FILENAME = "CTD_chemicals.tsv.gz"
 
-    # Column names as they appear in the CTD file (after skipping # comment lines)
+    # Column names as they appear in the CTD files (after skipping # comment lines)
     _CTD_COLS = [
         "ChemicalName",
         "ChemicalID",
@@ -49,6 +53,21 @@ class CTDParser(BaseParser):
         "InteractionActions",
         "PubMedIDs",
     ]
+    _CHEM_COLS = [
+        "ChemicalName",
+        "ChemicalID",
+        "CasRN",
+        "PubChemCID",
+        "PubChemSID",
+        "DTXSID",
+        "InChIKey",
+        "Definition",
+        "ParentIDs",
+        "TreeNumbers",
+        "ParentTreeNumbers",
+        "MESHSynonyms",
+        "CTDCuratedSynonyms",
+    ]
 
     def __init__(self, data_dir: str):
         super().__init__(data_dir)
@@ -61,14 +80,19 @@ class CTDParser(BaseParser):
     # ------------------------------------------------------------------
 
     def download_data(self) -> bool:
-        """Download the CTD chemical-gene interactions file."""
+        """Download CTD chemical-gene interactions and chemical vocabulary files."""
         logger.info("Downloading CTD chemical-gene interactions …")
-        result = self.download_file(self.CTD_URL, self._FILENAME)
-        if result:
-            logger.info("CTD file available at: %s", result)
-            return True
-        logger.error("Failed to download CTD chemical-gene interactions.")
-        return False
+        ixn_result = self.download_file(self.CTD_URL, self._FILENAME)
+        if not ixn_result:
+            logger.error("Failed to download CTD chemical-gene interactions.")
+            return False
+
+        logger.info("Downloading CTD chemical vocabulary …")
+        chem_result = self.download_file(self.CTD_CHEM_URL, self._CHEM_FILENAME)
+        if not chem_result:
+            logger.warning("Failed to download CTD chemical vocabulary; cross-reference IDs will be absent.")
+
+        return True
 
     # ------------------------------------------------------------------
     # Parse
@@ -171,7 +195,18 @@ class CTDParser(BaseParser):
             .copy()
         )
         chem_df["mesh_id"] = chem_df["chemical_id"]
-        chem_df = chem_df[["chemical_id", "chemical_name", "mesh_id"]].reset_index(drop=True)
+
+        # ---- Enrich with cross-reference IDs from vocabulary file ----
+        vocab = self._load_chem_vocab()
+        if not vocab.empty:
+            chem_df = chem_df.merge(vocab, on="chemical_id", how="left")
+        else:
+            for col in ("cas_number", "pubchem_cid", "inchikey", "dtxsid", "mesh_parent_ids"):
+                chem_df[col] = ""
+
+        cols = ["chemical_id", "chemical_name", "mesh_id",
+                "cas_number", "pubchem_cid", "inchikey", "dtxsid", "mesh_parent_ids"]
+        chem_df = chem_df[cols].reset_index(drop=True)
         chem_df["source_database"] = "CTD"
 
         logger.info("Chemical nodes : %d", len(chem_df))
@@ -195,6 +230,47 @@ class CTDParser(BaseParser):
     # Helpers
     # ------------------------------------------------------------------
 
+    def _load_chem_vocab(self) -> pd.DataFrame:
+        """
+        Load CTD_chemicals.tsv.gz and return a DataFrame with one row per
+        chemical containing cross-reference identifiers keyed by chemical_id.
+        Returns an empty DataFrame if the file is missing.
+        """
+        vocab_path = self.source_dir / self._CHEM_FILENAME
+        if not vocab_path.exists():
+            logger.warning("CTD chemical vocabulary not found at %s; skipping enrichment.", vocab_path)
+            return pd.DataFrame()
+
+        try:
+            df = pd.read_csv(
+                vocab_path,
+                sep="\t",
+                compression="gzip",
+                comment="#",
+                header=None,
+                names=self._CHEM_COLS,
+                low_memory=False,
+                dtype=str,
+            )
+        except Exception as exc:
+            logger.exception("Failed to read CTD chemical vocabulary: %s", exc)
+            return pd.DataFrame()
+
+        df["ChemicalID"] = df["ChemicalID"].apply(self._normalize_mesh_id)
+        df = df[df["ChemicalID"].str.strip() != ""].drop_duplicates(subset=["ChemicalID"])
+        df["PubChemCID"] = df["PubChemCID"].str.lstrip("CID:")
+
+        vocab = pd.DataFrame({
+            "chemical_id":    df["ChemicalID"].str.strip(),
+            "cas_number":     df["CasRN"].fillna("").str.strip(),
+            "pubchem_cid":    df["PubChemCID"].fillna("").str.strip(),
+            "inchikey":       df["InChIKey"].fillna("").str.strip(),
+            "dtxsid":         df["DTXSID"].fillna("").str.strip(),
+            "mesh_parent_ids": df["ParentIDs"].fillna("").str.strip(),
+        })
+        logger.info("Loaded %d entries from CTD chemical vocabulary.", len(vocab))
+        return vocab
+
     @staticmethod
     def _normalize_mesh_id(mesh_id) -> str:
         """Return a MeSH ID in MESH:XXXXXXX format."""
@@ -213,9 +289,14 @@ class CTDParser(BaseParser):
         """Return the column schema for each output table."""
         return {
             "chemical_nodes": {
-                "chemical_id": "MeSH ID for the chemical (e.g. MESH:D000082)",
+                "chemical_id": "MeSH SCR ID for the chemical (e.g. MESH:C534883)",
                 "chemical_name": "Name of the chemical",
                 "mesh_id": "MeSH identifier (same as chemical_id)",
+                "cas_number": "CAS Registry Number",
+                "pubchem_cid": "PubChem Compound ID",
+                "inchikey": "InChIKey",
+                "dtxsid": "EPA DSSTox Substance Identifier",
+                "mesh_parent_ids": "Pipe-separated MeSH descriptor (D*) IDs this chemical maps to",
                 "source_database": "CTD",
             },
             "chemical_increases_expression": {

@@ -344,11 +344,15 @@ mappings:
       data_property_map:
         chemical_id: xrefMeSH
         chemical_name: commonName
-        mesh_id: xrefMeSH
+        cas_number: xrefCasRN
+        pubchem_cid: xrefPubchemCID
+        inchikey: inchiKey
+        dtxsid: xrefDTXSID
+        mesh_parent_ids: xrefMeSHDescriptor
         source_database: sourceDatabase
       merge_column:
-        data_property: xrefMeSH
-        source_column_name: chemical_id
+        data_property: xrefCasRN
+        source_column_name: cas_number
 
   # ---------------------------------------------------------------------------
   # AOP-DB - Adverse Outcome Pathway Database
