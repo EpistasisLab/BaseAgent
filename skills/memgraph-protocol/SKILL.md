@@ -1,97 +1,91 @@
 ---
 name: memgraph-protocol
-description: Use when running the graph export step, inspecting or validating CSV and Cypher outputs, importing the knowledge graph into Memgraph via Docker, or extending MemgraphExporter. Covers running the exporter in isolation, output file formats (nodes_*.csv, edges_*.csv, import.cypher), Docker volume mount, Cypher script validation, and known constraints (string-only values, global node ID uniqueness, graph_indexes is informational).
+description: Use when running the CardioKB pipeline to load data into Memgraph, verifying graph contents, or managing Memgraph deployment via Docker. Covers the pipeline orchestrator (src/main.py), the Cypher batch loader (src/memgraph_loader.py), Docker deployment, and data export/import scripts.
 ---
 
-## Prerequisite
+## CardioKB Graph Loading
 
-Confirm `data/output/ontology_populated.rdf` exists before proceeding. The exporter reads this file; if it is absent, run the full pipeline first (`python src/main.py`) or the populate step in isolation.
+CardioKB loads data directly into Memgraph via Cypher (no intermediate CSV/RDF export step). The loader reads `src/ontology_configs.py` and batch-loads TSVs from `data/processed/`.
 
----
+### Running the Pipeline
 
-## Running the Exporter
-
-**Isolated run** (populated RDF already exists):
-
-```python
-from src.export.memgraph_exporter import MemgraphExporter
-
-exporter = MemgraphExporter(
-    rdf_files=["data/output/ontology_populated.rdf"],
-    output_dir="data/output",
-)
-result = exporter.export()
-# result["cypher_script"] is a path string to import.cypher, not the file content
-```
-
-`rdf_files` is a list — pass multiple RDF files if the graph spans more than one populated ontology file.
-
-**Full pipeline** (runs populate then export):
 ```bash
+# Full pipeline: download → parse → TSV export → Memgraph load
 python src/main.py
+
+# Parse and export TSVs only (no graph load)
+python src/main.py --skip-neo4j
+
+# Use existing cached data (no downloads)
+python src/main.py --skip-download
+
+# Both flags
+python src/main.py --skip-download --skip-neo4j
 ```
 
----
+### Memgraph Connection
 
-## Outputs
-
-All files are written to `data/output/`:
-
-| File | Content |
-|------|---------|
-| `nodes_{NodeType}.csv` | One file per OWL class; columns: `id`, data properties in alphabetical order, then `uri` as the final column. `uri` is archival and is excluded from the Cypher `CREATE` statement. |
-| `edges_{RelType}.csv` | One file per OWL object property; columns: `start_id`, `end_id`, `start_uri`, `end_uri` |
-| `import.cypher` | Cypher LOAD CSV script for Memgraph |
-
-**All CSV values are strings.** Use `ToInteger()` / `ToFloat()` in Cypher for numeric comparisons.
+- Default: `bolt://localhost:7687` (Docker) or `bolt://localhost:7688` (local dev)
+- Environment variables: `MEMGRAPH_URI`, `MEMGRAPH_USERNAME`, `MEMGRAPH_PASSWORD`
+- The loader uses the Neo4j Python driver (compatible with Memgraph's Bolt protocol)
 
 ---
 
-## Importing into Memgraph
+## The Loader: `src/memgraph_loader.py`
 
-Mount `data/output/` to `/import-data/` inside the container:
+Key behaviors:
+- Reads config entries from `src/ontology_configs.py`
+- For each entry, reads the corresponding TSV from `data/processed/<source>/<filename>.tsv`
+- **Node entries**: Uses `MERGE` on the primary key to avoid duplicates
+- **Relationship entries**: Uses `MATCH` on subject/object nodes, then `MERGE` the relationship
+- **source_label**: Automatically sets `r.source` property on every relationship from the config's `source_label` field
+- Processes entries in order — node configs should come before relationship configs
+
+---
+
+## Docker Deployment
 
 ```bash
-docker run -v /abs/path/to/data/output:/import-data memgraph/memgraph-platform
+# Deploy web app + Memgraph
+cp .env.example .env           # Fill in credentials
+docker compose up -d           # App at http://localhost:5050
+
+# Import pre-built graph data
+./scripts/import_graph.sh data/export/memgraph-data.tar.gz
+
+# Export graph data for transfer
+./scripts/export_graph.sh      # Produces data/export/memgraph-data.tar.gz (~1.2 GB)
 ```
 
-Then paste or load `import.cypher` in Memgraph Lab. The `/import-data/` prefix in `LOAD CSV` paths is hardcoded by the exporter and must match this mount point.
+### Docker Compose Services
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| `memgraph` | 7687 (bolt) | Graph database |
+| `web` | 5050 (http) | Flask web app + API |
 
 ---
 
-## Validating import.cypher
+## Verifying Graph Contents
 
-After export, verify `import.cypher` before running in Memgraph:
+After loading, verify via Cypher queries:
 
-- Each node type has both `CREATE INDEX ON :NodeType;` and `CREATE INDEX ON :NodeType(id);`.
-- `LOAD CSV` paths use the `/import-data/` prefix.
-- Node `CREATE` statements include all expected data properties. `uri` is present in the CSV but intentionally absent from the Cypher `CREATE` — do not add it.
-- Edge `MATCH` clauses are label-agnostic: `MATCH (a {id: row.start_id})` — correct only when node IDs are globally unique across types (see below).
+```cypher
+-- Total counts
+MATCH (n) RETURN count(n) AS nodes;
+MATCH ()-[r]->() RETURN count(r) AS relationships;
 
----
+-- Counts by label
+MATCH (n) RETURN labels(n) AS label, count(n) AS count ORDER BY count DESC;
 
-## Known Constraints
+-- Counts by relationship type
+MATCH ()-[r]->() RETURN type(r) AS type, count(r) AS count ORDER BY count DESC;
 
-**Global node ID uniqueness** — The Cypher script uses label-agnostic `MATCH` to resolve edge endpoints. This relies on every individual's local name (the IRI fragment, e.g., `gene_7157`) being unique across all node types. Individual IRIs are assigned by ista at populate time using type-specific prefixes (`gene_*`, `drug_*`, `disease_*`), which ensures uniqueness in practice. If a new node type could produce IRI collisions with an existing type, establish a distinct prefix in the ontology before running export.
+-- Source label coverage
+MATCH ()-[r]->() RETURN r.source AS source, count(r) AS count ORDER BY count DESC;
+```
 
-**Multi-type individuals** — An individual that belongs to multiple OWL classes appears in every corresponding node CSV. Row counts across node files are not mutually exclusive; do not use them to infer total unique individual counts.
-
-**Stale file overwrite** — The exporter silently overwrites all existing CSV files in `output_dir` with no warning. After re-export, every CSV reflects the current run only — no append mode, no stale-file detection.
-
-**`graph_indexes` is informational** — `project.yaml` `graph_indexes` lists properties intended for indexing per node type, but `MemgraphExporter` does not read it. The exporter generates only a label index and an `id` index per node type. To add property indexes, append `CREATE INDEX ON :NodeType(prop);` statements to `import.cypher` manually, or extend `_write_cypher_script()` in `src/export/memgraph_exporter.py`.
-
----
-
-## Extending the Exporter
-
-`MemgraphExporter` is self-contained in `src/export/memgraph_exporter.py`. Key methods:
-
-| Method | Purpose |
-|--------|---------|
-| `_extract_nodes(ontology_ns)` | Groups `owl:NamedIndividual` triples by OWL class; collects literal data properties |
-| `_extract_edges(ontology_ns)` | Groups object property assertions between individuals by property local name |
-| `_write_node_csv(filepath, nodes, node_type)` | Writes node CSV; returns property column list (used by `_write_cypher_script`) |
-| `_write_edge_csv(filepath, edges, rel_type)` | Writes edge CSV |
-| `_write_cypher_script(node_columns, rel_types)` | Generates `import.cypher` |
-
-The exporter uses `rdflib` for RDF parsing — no OWL-specific library. Namespace detection reads the `owl:Ontology` IRI from the RDF, falling back to the most common individual namespace if absent.
+### Expected Stats
+- ~4.9M nodes | ~7.7M relationships
+- 17 node types | 42 relationship types
+- 21 source labels on relationships

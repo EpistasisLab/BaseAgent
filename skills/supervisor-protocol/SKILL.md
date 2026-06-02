@@ -1,51 +1,49 @@
 ---
 name: supervisor-protocol
-description: Use when coordinating across pipeline modules — tracing config ownership (databases.yaml, project.yaml, ontology_mappings.yaml), diagnosing silent failures, or integrating a new data source end-to-end. Covers the six contracts that fail silently (source name consistency, TSV stems, column agreement, node-before-relationship ordering, OWL name validity, credential injection) and the seven-step new-source checklist.
+description: Use when coordinating across CardioKB pipeline modules — tracing config ownership, diagnosing silent failures, or integrating a new data source end-to-end. Covers the contracts that fail silently (source name consistency, TSV stems, column agreement, OWL name validity) and the new-source checklist.
 ---
 
-## Pipeline Data Flow
+## CardioKB Pipeline Data Flow
 
 ```
-databases.yaml + .env
+.env (credentials)
        ↓
    BaseParser (download + parse) → data/raw/<source>/
        ↓
    DataFrame dict → export_tsv → data/processed/<source>/<name>.tsv
        ↓
-   OntologyPopulator (ontology_mappings.yaml + project.yaml) → data/output/ontology_populated.rdf
-       ↓
-   MemgraphExporter → data/output/nodes_*.csv, edges_*.csv, import.cypher
+   src/memgraph_loader.py (reads src/ontology_configs.py) → Memgraph (bolt://localhost:7687)
 ```
 
 ---
 
 ## Config File Ownership
 
-| File | Owns |
-|------|------|
-| `config/databases.yaml` | Which parsers run; constructor args and credentials |
-| `config/project.yaml` | Published OWL name table (active node/edge types); disease scope; ontology paths |
-| `config/ontology_mappings.yaml` | TSV column → OWL property mappings; node/relationship entry order |
-
-Changing a `databases.yaml` key breaks: `data/processed/` subdirectory, `ontology_mappings.yaml` prefix, and `PARSERS` dict in `src/main.py` — all must be updated together.
+| File | Owner | Purpose |
+|------|-------|---------|
+| `ontology/cardiokb_ontology.rdf` | ontology_agent | OWL schema: classes, object/data properties, edgeSource annotations |
+| `ontology/schema/node_types.txt` | ontology_agent | Canonical list of 17 node types |
+| `ontology/schema/edge_types.txt` | ontology_agent | Canonical list of relationship types with source attribution |
+| `src/ontology_configs.py` | mapping_agent | 86 entries mapping TSV columns → graph node/relationship types and properties |
+| `src/main.py` | engineer_agent | Pipeline orchestrator, PARSERS dict, parser instantiation |
+| `src/parsers/*.py` | engineer_agent | Parser implementations (inherit BaseParser) |
+| `src/memgraph_loader.py` | (do not modify) | Cypher-based Memgraph batch loader |
 
 ---
 
 ## Cross-Module Contracts
 
-These six rules must hold for the pipeline to produce correct output. Violations fail silently.
+These rules must hold for the pipeline to produce correct output. Violations fail silently.
 
-**1. Source name consistency** — `databases.yaml` key = `PARSERS` key (main.py) = `ontology_mappings.yaml` entry prefix = `data/processed/<source>/` subdirectory name. All four must be identical strings. Note: `BaseParser.source_name` is derived from the class name (`ClassName.replace('Parser','').lower()`), which controls `data/raw/<classname>/` and may differ from the databases.yaml key — this is an expected split (e.g., `MEDLINECooccurrenceParser` → raw dir `medlinecooccurrence`, processed dir `medline_cooccurrence`).
+**1. Source name consistency** — `src/main.py` PARSERS dict key = `src/ontology_configs.py` entry prefix = `data/processed/<source>/` subdirectory name. All three must be identical strings.
 
-**2. TSV filename stems** — Keys in `parse_data()` return dict become TSV filename stems (e.g., key `"gene_disease"` → `gene_disease.tsv`). Each `source_filename` in `ontology_mappings.yaml` must exactly match one of these stems.
+**2. TSV filename stems** — Keys in `parse_data()` return dict become TSV filename stems (e.g., key `"gene_disease"` → `gene_disease.tsv`). Each `source_filename` in `src/ontology_configs.py` must exactly match one of these stems + `.tsv`.
 
-**3. Column name agreement** — Every column name referenced in `ontology_mappings.yaml` (`iri_column_name`, `subject_column_name`, `object_column_name`, `data_property_map` keys, `merge_column.source_column_name`, `filter_column`) must appear as a column in the corresponding TSV. `get_schema()` must exactly match what `parse_data()` produces.
+**3. Column name agreement** — Every column name referenced in `src/ontology_configs.py` (`data_property_map` keys, `merge_column`, `subject_merge_column`, `object_merge_column`) must appear as a column in the corresponding TSV.
 
-**4. Node-before-relationship ordering** — In `ontology_mappings.yaml`, all node entries must precede all relationship entries. The populate step resolves relationships by matching against already-loaded individuals; a relationship entry processed before its subject or object type exists produces zero edges with no error.
+**4. OWL name validity** — `node_type` and `relationship_type` values in `src/ontology_configs.py` must correspond to types defined in `ontology/cardiokb_ontology.rdf` and listed in `ontology/schema/node_types.txt` / `edge_types.txt`.
 
-**5. OWL name validity** — `node_type` and `relationship_type` values in `ontology_mappings.yaml` must be OWL classes/properties that exist in `data/ontology/ontology.rdf` AND appear as active (uncommented) entries in `project.yaml` `node_types`/`edge_types`. Data property names (in `data_property_map`, `*_match_property`, `merge_column`) are not in `project.yaml` — verify them against the ontology or existing mapping entries for the same class.
-
-**6. `_env` credential injection** — `_resolve_env_vars()` in `main.py` strips `_env` suffix and replaces value with `os.environ.get(VAR)`. If the env var is unset, the value becomes `None` and a WARNING is logged — no hard error. The parser constructor must declare the stripped parameter name. Only add `_env` keys when the env var is guaranteed present.
+**5. source_label required** — Every relationship entry in `src/ontology_configs.py` must have a `source_label` field. The loader sets `r.source` from this.
 
 ---
 
@@ -53,34 +51,23 @@ These six rules must hold for the pipeline to produce correct output. Violations
 
 | Symptom | Root cause |
 |---------|------------|
-| Zero edges for a source | Relationship entry precedes node entry in `ontology_mappings.yaml` |
-| Populate loads 0 rows | Source name mismatch across configs (contract 1) |
-| TSV column not found at populate | Column name mismatch between parser and mappings (contract 3) |
-| Credential silently None | `_env` key added but env var not set in `.env` |
-| OWL property not resolved | Name in mappings doesn't match active entry in `project.yaml` |
-| Stale graph output | `MemgraphExporter` silently overwrites without warning |
-
-`validate_config()` on `OntologyPopulator` checks contracts 3 and 5 partially but does NOT check `merge_column.data_property`. It is never called automatically — must be run manually before a full pipeline run.
+| Zero edges for a source | Node not loaded before relationship references it |
+| TSV not found at load time | Source name mismatch between main.py and ontology_configs.py |
+| Relationship missing source property | `source_label` missing from ontology_configs.py entry |
+| Credential silently None | Env var not set in `.env` |
 
 ---
 
 ## New Source Integration Checklist
 
-Complete all steps in order before running the full pipeline:
+1. Create parser class extending `BaseParser` in `src/parsers/<source>_parser.py`
+2. Add import in `src/parsers/__init__.py`
+3. Register in PARSERS dict in `src/main.py` and add instantiation in `create_parsers()`
+4. Add credentials to `.env` if needed
+5. Add entries to `src/ontology_configs.py` — node entries first, then relationships
+6. Add OWL classes/properties to `ontology/cardiokb_ontology.rdf` if new types needed
+7. Add types to `ontology/schema/node_types.txt` / `edge_types.txt`
 
-1. Create parser class extending `BaseParser` in `src/parsers/<source>_parser.py` — implement `download_data()`, `parse_data()`, `get_schema()`
-2. Add import and add to `__all__` in `src/parsers/__init__.py`
-3. Register in `PARSERS` in `src/main.py`: `"<databases_yaml_key>": ClassName`
-4. Add entry to `config/databases.yaml` with `enabled: true` and any required args
-5. Add credentials to `.env` if the parser uses `_env` keys
-6. Add `ontology_mappings.yaml` entries — node entries first, then relationship entries
-7. Activate any new OWL class or property names in `config/project.yaml` `node_types` / `edge_types`
+Verify with: `python src/main.py --skip-neo4j` (parse only, no graph load)
 
-After step 4, run `python src/main.py --source <key>` to produce TSVs.
-
----
-
-## References
-
-- [references/module_apis.md](references/module_apis.md) — BaseParser, OntologyPopulator, MemgraphExporter method signatures and return contracts
-- [references/cli_and_outputs.md](references/cli_and_outputs.md) — CLI usage, output file formats, running steps in isolation
+Full pipeline: `python src/main.py`

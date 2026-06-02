@@ -25,6 +25,15 @@ from .medline_parser import MEDLINEParser
 from .evolutionary_rate_covariation import EvolutionaryRateCovariationParser
 from .reactome_parser import ReactomeParser
 from .string_parser import StringParser
+from .clinicaltrials_parser import ClinicalTrialsParser
+from .clinpgx_parser import ClinPGxParser
+from .opentargets_parser import OpenTargetsParser
+from .hpo_parser import HPOParser
+from .hgnc_parser import HGNCFamiliesParser
+from .clinvar_parser import ClinVarParser
+from .sider_parser import SIDERParser
+from .lincs_parser import LINCSParser
+from .pubtator_parser import PubTatorParser
 
 __all__ = [
     'BaseParser',
@@ -46,4 +55,13 @@ __all__ = [
     'EvolutionaryRateCovariationParser',
     'ReactomeParser',
     'StringParser',
+    'ClinicalTrialsParser',
+    'ClinPGxParser',
+    'OpenTargetsParser',
+    'HPOParser',
+    'HGNCFamiliesParser',
+    'ClinVarParser',
+    'SIDERParser',
+    'LINCSParser',
+    'PubTatorParser',
 ]

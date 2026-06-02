@@ -398,6 +398,10 @@ def _build_model_kwargs(
         kwargs["temperature"] = 1.0
         kwargs["stop_sequences"] = None
 
+    # Claude Opus 4.7 does not accept temperature
+    if "opus-4-7" in model:
+        kwargs.pop("temperature", None)
+
     # Specific handling for each source
     if source == "OpenAI":
         if api_key is None:
@@ -530,9 +534,14 @@ def get_llm(
     # Handle special cases that need custom initialization
     if source == "AnthropicFoundry":
         from anthropic import AnthropicFoundry, AsyncAnthropicFoundry
+        import re
 
         azure_endpoint = kwargs["base_url"]
         azure_api_key = kwargs["api_key"]
+
+        # Extract resource name from base_url (e.g., https://my-resource.services.ai.azure.com/... -> my-resource)
+        resource_match = re.match(r"https?://([^.]+)\.services\.ai\.azure\.com", azure_endpoint)
+        azure_resource = resource_match.group(1) if resource_match else None
 
         # Create ChatAnthropic instance
         chat = ChatModelClass(**kwargs)
@@ -545,22 +554,38 @@ def get_llm(
 
         def _get_sync_client(self):
             if 'client' not in _sync_client_cache:
-                _sync_client_cache['client'] = AnthropicFoundry(
-                    api_key=azure_api_key,
-                    base_url=azure_endpoint,
-                    max_retries=self.max_retries,
-                    default_headers=self.default_headers,
-                )
+                # Clear conflicting env vars to avoid SDK picking them up
+                saved_env = {}
+                for env_key in ['ANTHROPIC_FOUNDRY_RESOURCE', 'ANTHROPIC_FOUNDRY_BASE_URL']:
+                    if env_key in os.environ:
+                        saved_env[env_key] = os.environ.pop(env_key)
+                try:
+                    _sync_client_cache['client'] = AnthropicFoundry(
+                        api_key=azure_api_key,
+                        resource=azure_resource,
+                        max_retries=self.max_retries,
+                        default_headers=self.default_headers,
+                    )
+                finally:
+                    os.environ.update(saved_env)
             return _sync_client_cache['client']
 
         def _get_async_client(self):
             if 'client' not in _async_client_cache:
-                _async_client_cache['client'] = AsyncAnthropicFoundry(
-                    api_key=azure_api_key,
-                    base_url=azure_endpoint,
-                    max_retries=self.max_retries,
-                    default_headers=self.default_headers,
-                )
+                # Clear conflicting env vars to avoid SDK picking them up
+                saved_env = {}
+                for env_key in ['ANTHROPIC_FOUNDRY_RESOURCE', 'ANTHROPIC_FOUNDRY_BASE_URL']:
+                    if env_key in os.environ:
+                        saved_env[env_key] = os.environ.pop(env_key)
+                try:
+                    _async_client_cache['client'] = AsyncAnthropicFoundry(
+                        api_key=azure_api_key,
+                        resource=azure_resource,
+                        max_retries=self.max_retries,
+                        default_headers=self.default_headers,
+                    )
+                finally:
+                    os.environ.update(saved_env)
             return _async_client_cache['client']
 
         chat.__class__._client = property(_get_sync_client)

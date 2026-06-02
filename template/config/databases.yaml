@@ -1,20 +1,13 @@
+# CardioKB Database Configuration
+# Defines all data sources, their enabled status, and connection parameters.
+
 databases:
-  aopdb:
-    enabled: false
-    args:
-      mysql_config:
-        host: localhost
-        user_env: MYSQL_USERNAME
-        password_env: MYSQL_PASSWORD
-        database_env: MYSQL_DB_NAME
-    notes: Adverse Outcome Pathway Database. Provides Pathway nodes and geneInPathway/pathwayContainsGene
-      edges. Requires local MySQL.
-  disgenet:
+  ncbigene:
     enabled: true
     args:
-      api_key_env: DISGENET_API_KEY
-    notes: Gene-disease associations via REST API. Provides geneAssociatesWithDisease
-      edges. Queries disease terms from project.yaml.
+      source_url: https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz
+    notes: Gene nodes from NCBI FTP. Disease-agnostic; provides the base Gene node set.
+
   drugbank:
     enabled: true
     args:
@@ -22,66 +15,49 @@ databases:
       version: latest
       username_env: DRUGBANK_USERNAME
       password_env: DRUGBANK_PASSWORD
-    notes: Drug information and drug-gene binding. Provides Drug nodes with rich data
-      properties (ID, name, description, indication, CAS number, drug type, SMILES,
-      InChI, ChEMBL, PubChem, ChEBI, KEGG identifiers) and chemicalBindsGene edges
-      (filtered to genes with UniProt accession or HGNC symbol). Only drugs with at
-      least one external cross-reference identifier are included. Drug indication
-      is stored as a data property (not a Disease node). Requires free academic account
-      (HTTP Basic Auth). Version can be 'latest' or specific version (e.g., '5-1-14').
-  bindingdb:
+    notes: Drug information and drug-gene binding. Requires free academic account.
+
+  dorothea:
     enabled: true
     args: {}
-    notes: 'BindingDB - Database of measured binding affinities. Provides chemicalBindsGene
-      edges for drugs/chemicals with measured binding affinity to protein targets.
-      Public source — no credentials required. Produces: drug_binds_gene.tsv.'
-  ctd:
-    enabled: true
-    args: {}
-    notes: 'CTD (Comparative Toxicogenomics Database) chemical-gene interactions.
-      Extracts chemicalIncreasesExpression and chemicalDecreasesExpression edges from
-      the bulk CTD_chem_gene_ixns.tsv.gz file. Public source — no credentials required.
-      Produces: chemical_nodes.tsv, gene_nodes.tsv, chemical_increases_expression.tsv,
-      chemical_decreases_expression.tsv.'
-  ncbigene:
-    enabled: true
-    args:
-      source_url: https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz
-    notes: Gene nodes from NCBI FTP. Disease-agnostic; provides the base Gene node
-      set.
+    notes: DoRothEA/CollectTRI transcription factor regulatory network from OmniPath API.
+
   disease_ontology:
     enabled: true
     args: {}
-    description: Disease Ontology (DO) - A standardized ontology for human disease
-      representation
-    urls:
-    - https://raw.githubusercontent.com/DiseaseOntology/HumanDiseaseOntology/main/src/ontology/doid.obo
-    format: OBO
-    version: latest
-    notes: 'Disease Ontology (DO) - Comprehensive ontology of human diseases. Provides
-      standardized Disease nodes with disease identifiers, names, and hierarchical
-      relationships. Primary source is the OBO format file (doid.obo). Also generates
-      slim-terms.tsv (137 curated diseases from Hetionet/GWAS Catalog integration).
-      Public source — no credentials required. Produces: disease_nodes.tsv, slim_terms.tsv.'
+    notes: Disease Ontology (DO) - Comprehensive ontology of human diseases.
+
   gene_ontology:
     enabled: true
     args: {}
-    notes: GO terms and gene annotations. Provides BiologicalProcess, MolecularFunction,
-      CellularComponent nodes and geneParticipatesInBiologicalProcess, geneHasMolecularFunction,
-      geneAssociatedWithCellularComponent edges.
+    notes: GO terms and gene annotations. Provides BP, MF, CC nodes and gene associations.
+
   uberon:
     enabled: true
     args: {}
-    description: Uberon - a cross-species anatomy ontology integrating anatomical
-      structures across multiple organisms. Provides standardized anatomical identifiers
-      for integration with expression and phenotype data.
-    urls:
-    - http://purl.obolibrary.org/obo/uberon/basic.obo
-    - http://purl.obolibrary.org/obo/uberon/subsets/human-view.obo
-    version: latest
-    notes: Uberon anatomy ontology. Provides BodyPart nodes from both uberon-basic
-      and human-view subsets. No edges extracted. No credentials required (public
-      OBO files).
+    notes: Uberon anatomy ontology. Provides BodyPart nodes.
+
+  mesh:
+    enabled: true
+    args:
+      base_url: https://nlmpubs.nlm.nih.gov/projects/mesh/MESH_FILES/xmlmesh/
+    notes: MeSH Symptom nodes from Signs and Symptoms subtree.
+
+  sider:
+    enabled: true
+    args: {}
+    notes: SIDER side effects database. Legacy — no live API alternative.
+
+  lincs:
+    enabled: true
+    args: {}
+    notes: LINCS L1000 compound-gene regulation. Legacy — clue.io requires institutional access.
+
+  medline:
+    enabled: false
+    args: {}
+    notes: MEDLINE co-occurrence. Legacy pinned GitHub commit.
+
   drugcentral:
     enabled: true
     args:
@@ -91,76 +67,87 @@ databases:
         dbname: drugcentral
         user_env: DC_USER
         password_env: DC_PASSWORD
-      llr_threshold: 0.0
-    notes: 'Drug-disease, pharmacologic class, and adverse-effect data from DrugCentral
-      PostgreSQL (v54, 2023-11-01). Public read-only instance at unmtid-dbs.net:5433.
-      Set DC_USER and DC_PASSWORD env vars (public credentials: drugman / dosage).
-      Alternatively load the dump locally: createdb drugcentral && gunzip -c drugcentral.sql.gz
-      | psql drugcentral. Produces: drugs, pharmacologic_classes, diseases, drug_treats_disease,
-      drug_in_class, chemical_causes_effect TSVs.'
+    notes: Drug-disease, pharmacologic class, and adverse-effect data from DrugCentral.
+
+  pubtator:
+    enabled: true
+    args: {}
+    notes: PubTator Central literature mining. Gene-disease and disease-disease associations.
+
+  bindingdb:
+    enabled: true
+    args: {}
+    notes: BindingDB measured binding affinities. Provides chemicalBindsGene edges.
+
+  ctd:
+    enabled: true
+    args: {}
+    notes: CTD chemical-gene expression interactions.
+
   bgee:
     enabled: true
     args:
       source_url: https://www.bgee.org/ftp/current/download/calls/expr_calls/Homo_sapiens_expr_simple.tsv.gz
       tissue_filter: null
-    notes: Gene expression presence/absence calls by anatomy. Provides anatomyExpressesGene
-      edges with expression quality metrics (call quality, FDR, expression score,
-      rank).
-  mesh:
-    enabled: true
-    args:
-      base_url: https://nlmpubs.nlm.nih.gov/projects/mesh/MESH_FILES/xmlmesh/
-    notes: 'MeSH (Medical Subject Headings) descriptor XML from NLM. Extracts Symptom
-      nodes from the Signs and Symptoms subtree (C23.888). Public source — no credentials
-      required. Produces: symptom_nodes.tsv.'
-  collectri:
-    enabled: true
-    args: {}
-    notes: CollectTRI transcription factor regulatory network from OmniPath API. Provides
-      TranscriptionFactor nodes and transcriptionFactorInteractsWithGene edges with
-      stimulation/inhibition annotations.
-  evolutionary_rate_covariation:
-    enabled: true
-    description: Evolutionary Rate Covariation - mammal functional evolutionary rate
-      covariation matrices
-    args:
-      url: https://datadryad.org/downloads/file_stream/3949673
-      file_path: ERC_matrices/mammal_ftERC.RDS
-    credentials: null
-    notes: 'Evolutionary Rate Covariation (ERC) - mammal functional ERC matrices from
-      Dryad. Provides gene-gene covariation edges (geneCoevolvesWithGene) using Fisher-transformed
-      ERC scores. No credentials required (public dataset). Produces: gene_covariation.tsv.'
+    notes: Bgee gene expression presence/absence calls by anatomy.
+
   reactome:
     enabled: true
     args: {}
-    urls:
-    - https://reactome.org/download/current/UniProt2Reactome_All_Levels.txt
-    - https://reactome.org/download/current/ReactomePathways.txt
-    - https://reactome.org/download/current/ReactomePathwaysRelation.txt
-    notes: 'Reactome - Curated pathway database. Provides Pathway nodes and proteinParticipatesInPathway
-      edges. UniProt2Reactome_All_Levels.txt maps UniProt IDs to Reactome pathways;
-      ReactomePathways.txt provides pathway names and species; ReactomePathwaysRelation.txt
-      defines pathway hierarchy. Public source — no credentials required. Produces:
-      pathway_nodes.tsv, protein_pathway_associations.tsv.'
-  medline:
-    enabled: false
-    args:
-      api_key_env: NCBI_EUTILS_API_KEY
-    notes: >
-      MEDLINE co-occurrence parser. Queries PubMed via NCBI E-utilities for
-      disease, symptom, and anatomy terms, then computes pairwise Fisher exact
-      test co-occurrence statistics. Produces disease_symptom_cooccurrence,
-      disease_anatomy_cooccurrence, and disease_disease_cooccurrence TSVs.
-      Depends on disease_ontology, mesh, and uberon parsers having run first.
-      Optional: set NCBI_EUTILS_API_KEY in .env for 10 req/sec (default: 3 req/sec).
+    notes: Reactome curated pathway database.
+
   string:
     enabled: true
     args:
       min_combined_score: 700
-    notes: >
-      STRING protein-protein interaction database (human, taxon 9606).
-      Downloads protein.links, protein.info, and protein.aliases files (v12.0)
-      directly from stringdb-downloads.org. Maps Ensembl protein IDs to NCBI
-      Gene IDs via the aliases file (Ensembl_EntrezGene source). Produces
-      genes.tsv (Gene nodes) and gene_interactions.tsv (geneInteractsWithGene
-      edges). Public source, no credentials required.
+    notes: STRING protein-protein interactions (human, score >= 700).
+
+  # === CardioKB Custom Sources ===
+
+  clinicaltrials:
+    enabled: true
+    args: {}
+    notes: ClinicalTrials.gov API v2. Clinical trial nodes and disease/intervention edges.
+
+  clinpgx:
+    enabled: true
+    args: {}
+    notes: ClinPGx (PharmGKB successor) pharmacogenomics data via CPIC API.
+
+  opentargets:
+    enabled: true
+    args: {}
+    notes: OpenTargets gene-disease associations via Platform Parquet downloads.
+
+  hpo:
+    enabled: true
+    args: {}
+    notes: Human Phenotype Ontology. Phenotype nodes and gene-phenotype associations.
+
+  hgnc:
+    enabled: true
+    args: {}
+    notes: HGNC Gene Families. GeneFamily nodes and gene-family associations.
+
+  clinvar:
+    enabled: true
+    args: {}
+    notes: ClinVar variant data. Variant nodes and gene-variant/disease-variant edges.
+
+  # === Disabled/Removed Sources ===
+
+  disgenet:
+    enabled: false
+    args:
+      api_key_env: DISGENET_API_KEY
+    notes: "REMOVED: Redundant with OpenTargets + PubTator."
+
+  aopdb:
+    enabled: false
+    args: {}
+    notes: "REMOVED: Redundant with Reactome pathways."
+
+  jensen_tissues:
+    enabled: false
+    args: {}
+    notes: "REMOVED: BTO tissue names have zero overlap with Uberon; Bgee covers expression."

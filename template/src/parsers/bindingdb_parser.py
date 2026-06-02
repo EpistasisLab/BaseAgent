@@ -24,6 +24,7 @@ import logging
 import re
 import zipfile
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 import requests
@@ -105,7 +106,7 @@ class BindingDBParser(BaseParser):
             )
             return fallback
 
-    def _find_extracted_tsv(self) -> Path | None:
+    def _find_extracted_tsv(self) -> Optional[Path]:
         """Return the path to an already-extracted BindingDB TSV, or None."""
         candidates = sorted(self.source_dir.glob("BindingDB_All*.tsv"))
         return candidates[0] if candidates else None

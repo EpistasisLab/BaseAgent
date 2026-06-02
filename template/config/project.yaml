@@ -1,30 +1,55 @@
-# KG Project Configuration
-# This file defines the disease scope and ontology settings for this knowledge graph.
+# CardioKB Project Configuration
+# Cardiovascular Disease Knowledge Graph
 
 project:
-  name: "alzkb"
-  display_name: "Alzheimer's Knowledge Base"
-  version: "2.3.0"
+  name: "cardiokb"
+  display_name: "CardioKB - Cardiovascular Knowledge Base"
+  version: "1.0.0"
 
   disease_scope:
     primary_terms:
-      - "alzheimer"
-    umls_cuis:
-      - "C0002395"   # Alzheimer's Disease
-      - "C0750901"   # Alzheimer's Disease, Late Onset
-      - "C0750900"   # Alzheimer's Disease, Early Onset
+      - "heart failure"
+      - "coronary artery disease"
+      - "myocardial infarction"
+      - "atrial fibrillation"
+      - "cardiomyopathy"
+      - "aortic stenosis"
+      - "hypertension"
+      - "stroke"
+      - "atherosclerosis"
+      - "cardiac arrest"
+      - "ventricular tachycardia"
+      - "pulmonary hypertension"
+      - "heart valve disease"
+      - "endocarditis"
+      - "pericarditis"
+      - "aortic aneurysm"
+      - "peripheral artery disease"
+      - "deep vein thrombosis"
+      - "pulmonary embolism"
+      - "congenital heart disease"
+      - "arrhythmia"
+      - "angina pectoris"
     doid_ids:
-      - "DOID:10652"  # Alzheimer's disease
+      - "DOID:1287"   # cardiovascular system disease
+      - "DOID:114"    # heart disease
+      - "DOID:3393"   # coronary artery disease
+      - "DOID:5844"   # myocardial infarction
+      - "DOID:0060224" # atrial fibrillation
+      - "DOID:0050700" # cardiomyopathy
+      - "DOID:1712"   # aortic valve stenosis
+      - "DOID:10763"  # hypertension
+      - "DOID:6713"   # cerebrovascular disease
     mesh_ids:
-      - "D000544"     # Alzheimer Disease
-    # drug_names:
-    #   - "<drug1>"
-    #   - "<drug2>"
-
+      - "D002318"     # Cardiovascular Diseases
+      - "D006331"     # Heart Diseases
+      - "D003324"     # Coronary Artery Disease
+      - "D009203"     # Myocardial Infarction
+      - "D001281"     # Atrial Fibrillation
+      - "D006333"     # Heart Failure
+      - "D006973"     # Hypertension
 
   data_filtering:
-    # Optional tissue filtering for expression data
-    # tissue_filter: null  # Set to null to include all tissues, or provide list of UBERON IDs
     tissue_filter: null
 
   ontology:
@@ -34,17 +59,24 @@ project:
 
   graph_indexes:
     Gene: ["geneSymbol", "xrefNcbiGene"]
-    Drug: ["commonName", "xrefDrugbank", "xrefDTXSID"]
-    Disease: ["commonName", "xrefUmlsCUI", "xrefDiseaseOntology"]
-    Pathway: ["pathwayName", "xrefReactomePathway"]
+    Drug: ["commonName", "xrefDrugbank", "xrefMeSH"]
+    Disease: ["commonName", "xrefDiseaseOntology", "xrefUmlsCUI"]
+    Pathway: ["pathwayName", "pathwayId"]
     BodyPart: ["commonName", "xrefUberon"]
-    Symptom: ["commonName", "xrefMeSH", "sourceDatabase"]
+    Symptom: ["commonName", "xrefMeSH"]
     TranscriptionFactor: ["TF"]
-    DrugClass: ["pharma_class_name"]
-    ChemicalEffect: ["commonName", "xrefMeSH"]
+    PharmacologicClass: ["commonName", "classId"]
+    BiologicalProcess: ["commonName", "geneOntologyId"]
+    MolecularFunction: ["commonName", "geneOntologyId"]
+    CellularComponent: ["commonName", "geneOntologyId"]
+    SideEffect: ["commonName", "xrefUmlsCUI"]
+    ClinicalTrial: ["trialId"]
+    DrugLabel: ["labelId"]
+    Phenotype: ["commonName", "xrefHPO"]
+    GeneFamily: ["familyName", "familyId"]
+    Variant: ["variantId", "commonName"]
 
   node_types:
-    # Active: parsers exist and produce these node types
     - Gene
     - Drug
     - Disease
@@ -55,319 +87,44 @@ project:
     - BodyPart
     - Symptom
     - TranscriptionFactor
-    - DrugClass
-    - ChemicalEffect
-    # Inactive: defined in ontology but no parser produces these yet
-    # - Chemical
-    # - AnimalToxin
-    # - Biotoxin
-    # - CellType
-    # - ChemicalConcept
-    # - ChemicalEffect
-    # - ChemicalList
-    # - ClinicalPhenotype
-    # - CopyNumberVariant
-    # - Database
-    # - EnvironmentalRiskFactor
-    # - ExposureEvent
-    # - Finding
-    # - FungalToxin
-    # - GainOfFunctionMutation
-    # - GeneticDisease
-    # - GeneticEntity
-    # - GeneticPathway
-    # - GeneticRiskFactor
-    # - Human
-    # - HumanConcept
-    # - HumanMolecule
-    # - HumanNucleicAcid
-    # - HumanProtein
-    # - HumanSmallMolecule
-    # - List
-    # - LossOfFunctionMutation
-    # - MedicalCondition
-    # - MetabolicPathway
-    # - MicrobialToxin
-    # - Mutation
-    # - NonHumanSpecies
-    # - Organ
-    # - OrganSystem
-    # - PharmaceuticalDrug
-    # - PlantToxin
-    # - Publication
-    # - ResearchEntity
-    # - RiskFactor
-    # - SignalTransductionPathway
-    # - SingleNucleotidePolymorphism
-    # - Species
-    # - Study
-    # - SyntheticToxin
-    # - TherapeuticEffect
-    # - TissueType
-    # - Toxin
-    # - Variant
-    # - VenomComponent
+    - PharmacologicClass
+    - SideEffect
+    - ClinicalTrial
+    - DrugLabel
+    - Phenotype
+    - GeneFamily
+    - Variant
 
   edge_types:
-    # Active: parsers exist and produce these edge types
-    - diseaseAssociatesWithGene
-    - geneInPathway
-    - geneInteractsWithGene
-    - geneCovariesWithGene
-    - geneRegulatesGene
+    - drugBindsGene
+    - transcriptionFactorInteractsWithGene
     - geneParticipatesInBiologicalProcess
     - geneHasMolecularFunction
     - geneAssociatedWithCellularComponent
-    - transcriptionFactorInteractsWithGene
+    - compoundCausesSideEffect
+    - compoundUpregulatesGene
+    - compoundDownregulatesGene
+    - pharmacologicClassIncludesCompound
     - drugTreatsDisease
-    - chemicalBindsGene
-    - chemicalCausesEffect
     - chemicalIncreasesExpression
     - chemicalDecreasesExpression
-    # - anatomyUpregulatesGene  # Replaced by anatomyExpressesGene
-    # - anatomyDownregulatesGene  # Replaced by anatomyExpressesGene
-    - symptomManifestationOfDisease
-    - diseaseLocalizesToAnatomy
-    - diseaseAssociatesWithDisease
-    - drugInClass
+    - chemicalBindsGene
+    - bodyPartExpressesGene
+    - geneAssociatesWithDisease
+    - geneAssociatesWithPhenotype
+    - geneInPathway
     - pathwayContainsGene
-    - anatomyExpressesGene
-    # Inactive: defined in ontology but no parser produces these yet
-    # - geneAssociatesWithDisease
-    # - chemicalAssociatesWithDisease
-    # - bodyPartExpressesGene
-    # - bodyPartOverexpressesGene
-    # - bodyPartUnderexpressesGene
-    # - chemicalInList
-    # - diseaseDownregulatesGene
-    # - diseaseManifestedAsPhenotype
-    # - diseaseRegulatesGeneOther
-    # - diseaseUpregulatesGene
-    # - drugCausesEffect
-    # - pathwayRegulatesGene
-    # - phenotypeManifestationOfDisease
-    # - riskGoverenedByExposure
-    # - riskGovernedByGene
-    # - BODYPART_ISA_BODYPART
-    # - BODYPART_PARTOF_BODYPART
-    # - GeneOntologyObjectProperty
-    # - altersBiologicalState
-    # - anatomyDownregulatesGene
-    # - anatomyUpregulatesGene
-    # - aoManifestedAsDisease
-    # - aopCausesAO
-    # - aopHasMIE
-    # - aopIncludesKE
-    # - aopObjectProperty
-    # - bodyPartObjectProperty
-    # - chemicalAffectsExpression
-    # - chemicalHasActiveAssay
-    # - chemicalHasInactiveAssay
-    # - chemicalObjectProperty
-    # - containsCellType
-    # - containsOrgan
-    # - describedInPublication
-    # - diseaseObjectProperty
-    # - enzymeHasIsozyme
-    # - expressedInCellType
-    # - expressesProtein
-    # - fromSpecies
-    # - geneObjectProperty
-    # - hasAssociatedStudy
-    # - hasEquivalentDiseaseOrPhenotype
-    # - hasEtiology
-    # - hasIngredient
-    # - hasProteinProduct
-    # - hetionetObjectProperty
-    # - includesMetabolite
-    # - includesProtein
-    # - keIncludedInAOP
-    # - keyEventHasTargetStructure
-    # - keyEventTriggeredBy
-    # - keyEventTriggers
-    # - listIncludesChemical
-    # - proteinCodedByGene
-    # - proteinExpressedInCellType
-    # - proteinHasIsoform
-    # - proteinObjectProperty
-    # - researchEntityObjectProperty
-    # - structuralEntityObjectProperty
-    # - toxinFromClass
-    # - toxinFromSource
-    # - toxinHasModeOfAction
-    # - toxinObjectProperty
-
-  node_properties:
-    # Drug/Chemical properties
-    Drug:
-      - commonName
-      - xrefDrugbank
-      - xrefDTXSID
-      - drugDescription
-      - drugType
-      - drugGroups
-      - drugCategories
-      - drugIndication
-      - drugPharmacology
-      - drugMechanism
-      - drugToxicity
-      - drugHalfLife
-      - drugState
-      - molecularFormula
-      - molecularWeight
-    
-    # Disease properties
-    Disease:
-      - commonName
-      - xrefUmlsCUI
-      - xrefDiseaseOntology
-      - xrefMeSH
-      - xrefOMIM
-      - xrefNCIT
-      - xrefICD10CM
-      - xrefICD9CM
-      - xrefORDO
-      - xrefGARD
-      - xrefSNOMED
-      - diseaseDescription
-      - diseaseSymptoms
-    
-    # Gene properties
-    Gene:
-      - geneSymbol
-      - xrefNcbiGene
-      - geneName
-      - xrefUniProtId
-      - geneExpression
-      - geneExpressionCallQuality
-      - geneExpressionFDR
-      - geneExpressionScore
-      - geneExpressionRank
-      - chromosome
-      - typeOfGene
-    
-    # Pathway properties
-    Pathway:
-      - pathwayName
-      - pathwayId
-      - xrefReactomePathway
-      - species
-
-    # BodyPart properties
-    BodyPart:
-      - xrefUberon
-      - commonName
-      - synonym
-      - definition
-      - xrefMeSH
-      - xrefFMA
-    
-    # DrugClass properties
-    DrugClass:
-      - pharma_class_name
-      - pharma_class_code
-      - xrefDrugCentralPharmClass
-    
-    # ChemicalEffect properties
-    ChemicalEffect:
-      - commonName
-      - xrefMeSH
-    
-    # Symptom properties
-    Symptom:
-      - commonName
-      - xrefMeSH
-      - sourceDatabase
-
-  edge_properties:
-    geneAssociatesWithDisease:
-      - gdaScore
-      - evidenceIndex
-      - numberOfPublications
-      - numberOfSnps
-      - sourceDatabase
-
-    anatomyExpressesGene:
-      - expressionCall
-      - callQuality
-      - fdr
-      - expressionScore
-      - expressionRank
-      - unbiased
-      - sourceDatabase
-
-    chemicalBindsGene:
-      - interactionType
-      - sourceDatabase
-
-    drugTreatsDisease:
-      - indication
-      - sourceDatabase
-
-    chemicalCausesEffect:
-      - support
-      - sourceDatabase
-
-    geneParticipatesInBiologicalProcess:
-      - evidenceCode
-      - sourceDatabase
-
-    geneHasMolecularFunction:
-      - evidenceCode
-      - sourceDatabase
-
-    geneAssociatedWithCellularComponent:
-      - evidenceCode
-      - sourceDatabase
-
-    geneCovariesWithGene:
-      - ercScore
-      - sourceDatabase
-
-    chemicalIncreasesExpression:
-      - interactionText
-      - organism
-      - pubmedIds
-      - sourceDatabase
-
-    chemicalDecreasesExpression:
-      - interactionText
-      - organism
-      - pubmedIds
-      - sourceDatabase
-
-    geneInPathway:
-      - evidenceCode
-      - sourceDatabase
-
-    symptomManifestationOfDisease:
-      - cooccurrence
-      - pFisher
-      - enrichment
-      - oddsRatio
-      - sourceDatabase
-
-    diseaseLocalizesToAnatomy:
-      - cooccurrence
-      - pFisher
-      - enrichment
-      - oddsRatio
-      - sourceDatabase
-
-    diseaseAssociatesWithDisease:
-      - cooccurrence
-      - pFisher
-      - enrichment
-      - oddsRatio
-      - sourceDatabase
-
-    geneInteractsWithGene:
-      - combinedScore
-      - sourceDatabase
-
-    transcriptionFactorInteractsWithGene:
-      - sourceDatabase
-
-    drugInClass:
-      - sourceDatabase
-
+    - geneInteractsWithGene
+    - geneInFamily
+    - familyContainsGene
+    - hasVariant
+    - variantInGene
+    - associatedWithVariant
+    - variantAssociatedWithDisease
+    - STUDIES_CONDITION
+    - TESTS_INTERVENTION
+    - AFFECTS_RESPONSE_TO
+    - diseaseAssociatesWithDisease
+    - diseasePresentsSymptom
+    - diseaseLocalizesToAnatomy
+    - diseaseResemblesDisease

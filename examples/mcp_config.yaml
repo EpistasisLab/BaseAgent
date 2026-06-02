@@ -15,6 +15,7 @@ mcp_servers:
       - "-y"
       - "@modelcontextprotocol/server-filesystem"
       - "./"
+      - "/Users/nawaza/Desktop/Cardio-KB"
 
   # GitHub MCP Server (Docker-based with auto-discovery)
   github:

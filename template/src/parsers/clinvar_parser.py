@@ -9,6 +9,9 @@ Downloads variant_summary.txt.gz from NCBI FTP and extracts:
 Filters to variants associated with cardiovascular diseases using
 disease terms from config/project.yaml — no hardcoded disease values.
 
+Uses the enhanced IDMapper for comprehensive disease ID resolution
+(UMLS CUI, MedGen, OMIM, MONDO → DOID).
+
 Data Source: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/variant_summary.txt.gz
 """
 
@@ -61,8 +64,6 @@ class ClinVarParser(BaseParser):
         self.source_dir.mkdir(parents=True, exist_ok=True)
         self.filter_pathogenic = filter_pathogenic
 
-        # If source_url is a directory URL (e.g. VCF dir), fall back to the
-        # tab-delimited variant_summary file which is more useful for KG building.
         _url = source_url or _DEFAULT_URL
         if _url.endswith("/") or not _url.endswith(".gz"):
             _url = _DEFAULT_URL
@@ -113,10 +114,8 @@ class ClinVarParser(BaseParser):
                 chunksize=_CHUNK_ROWS,
             )
             for chunk in reader:
-                # Keep only human variants
                 if "TaxID" in chunk.columns:
                     chunk = chunk[chunk["TaxID"].astype(str) == str(_HUMAN_TAXON)]
-                # Filter by disease terms in PhenotypeList
                 if self._primary_terms and "PhenotypeList" in chunk.columns:
                     mask = chunk["PhenotypeList"].str.lower().apply(
                         lambda txt: any(t in str(txt) for t in self._primary_terms)
@@ -136,7 +135,6 @@ class ClinVarParser(BaseParser):
         df = pd.concat(all_chunks, ignore_index=True)
         logger.info("ClinVar: %d variants after filtering", len(df))
 
-        # Handle '#AlleleID' prefix from TSV header
         allele_col = "#AlleleID" if "#AlleleID" in df.columns else "AlleleID"
 
         # ---- Variant nodes ----
@@ -180,8 +178,14 @@ class ClinVarParser(BaseParser):
             gene_df = pd.DataFrame(columns=["allele_id", "gene_id", "gene_symbol", "source_database"])
 
         # ---- variantAssociatedWithDisease edges ----
-        # Expand pipe-separated disease IDs into individual rows
-        # Extract UMLS CUIs from MedGen IDs for Disease node matching
+        # Use enhanced IDMapper for comprehensive disease ID resolution
+        from id_mappings import IDMapper
+        base_data_dir = self.data_dir.parent  # data/raw → data/
+        mapper = IDMapper(str(base_data_dir))
+        processed_dir = base_data_dir / "processed"
+        if processed_dir.exists():
+            mapper.load_all_mappings(processed_dir)
+
         dis_need = [allele_col, "PhenotypeList", "PhenotypeIDS", "ClinicalSignificance"]
         dis_avail = [c for c in dis_need if c in df.columns]
         if len(dis_avail) >= 2 and allele_col in dis_avail:
@@ -193,49 +197,66 @@ class ClinVarParser(BaseParser):
             }).copy()
             dis_raw = dis_raw[dis_raw["phenotype_ids"].notna() & (dis_raw["phenotype_ids"] != "-")]
 
-            # Expand: each phenotype_ids entry may have multiple IDs (pipe-separated groups, comma-separated within)
             expanded_rows = []
             for _, row in dis_raw.iterrows():
                 allele_id = row["allele_id"]
                 clin_sig = row.get("clinical_significance", "")
                 phenotype_ids_str = str(row["phenotype_ids"])
 
-                # Format: "ID1,ID2|ID3,ID4|..." - pipe separates phenotypes, comma separates xrefs for same phenotype
                 for group in phenotype_ids_str.split("|"):
                     group = group.strip()
                     if not group or group == "-":
                         continue
 
-                    # Process all IDs in the group to find UMLS CUIs
+                    # Try ALL IDs in the group to find the best DOID mapping
+                    best_doid = None
                     umls_cui = None
                     first_id = None
+
                     for id_str in group.split(","):
                         id_str = id_str.strip()
                         if not id_str:
                             continue
                         if first_id is None:
                             first_id = id_str
-                        # Extract UMLS CUI from MedGen:Cxxxxxx format
+
+                        # Extract UMLS CUI from MedGen:Cxxxxxx
                         if id_str.startswith("MedGen:C") and len(id_str) > 8:
-                            cui = id_str[7:]  # Strip "MedGen:" prefix
+                            cui = id_str[7:]
                             if cui.startswith("C") and cui[1:].isdigit():
                                 umls_cui = cui
-                                break
+                                doid = mapper.map_to_doid(cui)
+                                if doid:
+                                    best_doid = doid
+                                    continue
+
+                        # Try direct mapping for all ID types
+                        doid = mapper.map_to_doid(id_str)
+                        if doid:
+                            best_doid = doid
 
                     if first_id:
                         expanded_rows.append({
                             "variant_id": str(allele_id),
-                            "disease_id": first_id,
-                            "umls_cui": umls_cui,  # UMLS CUI for Disease matching
+                            "disease_id": best_doid or first_id,
+                            "doid_mapped": best_doid is not None,
+                            "umls_cui": umls_cui,
                             "clinical_significance": clin_sig,
                             "source_database": "ClinVar",
                         })
 
-            dis_df = pd.DataFrame(expanded_rows).drop_duplicates().reset_index(drop=True)
+            dis_df = pd.DataFrame(expanded_rows).drop_duplicates(
+                subset=["variant_id", "disease_id"]
+            ).reset_index(drop=True)
 
-            # Log UMLS CUI extraction stats
+            # Report mapping stats
+            total = len(dis_df)
+            mapped = dis_df["doid_mapped"].sum() if "doid_mapped" in dis_df.columns else 0
             cui_count = dis_df["umls_cui"].notna().sum()
-            logger.info(f"ClinVar: extracted UMLS CUIs for {cui_count}/{len(dis_df)} disease associations")
+            logger.info(f"ClinVar disease mapping: {mapped}/{total} ({100*mapped/max(total,1):.1f}%) mapped to DOID")
+            logger.info(f"ClinVar: extracted UMLS CUIs for {cui_count}/{total} disease associations")
+
+            dis_df = dis_df.drop(columns=["doid_mapped"], errors="ignore")
         else:
             dis_df = pd.DataFrame(columns=["variant_id", "disease_id", "umls_cui",
                                            "clinical_significance", "source_database"])
@@ -281,8 +302,8 @@ class ClinVarParser(BaseParser):
             },
             VARIANT_DISEASE_ASSOC: {
                 "variant_id":            "ClinVar Variant ID (ClinVar:{allele_id} format)",
-                "disease_id":            "Disease ID (MONDO, MedGen, OMIM, etc.)",
-                "umls_cui":              "UMLS CUI extracted from MedGen ID (for Disease matching)",
+                "disease_id":            "Disease ID (DOID when mapped, otherwise original)",
+                "umls_cui":              "UMLS CUI extracted from MedGen ID",
                 "clinical_significance": "ClinVar clinical significance",
                 "source_database":       "Source database (ClinVar)",
             },

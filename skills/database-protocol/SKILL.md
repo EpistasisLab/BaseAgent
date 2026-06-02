@@ -1,15 +1,15 @@
 ---
 name: database-protocol
-description: Use when evaluating a new biomedical data source (producing a structured report on access method, formats, node/relationship types, and update schedule), or when enabling/disabling sources in config/databases.yaml. Covers the databases.yaml entry format, credential injection via the _env convention, and the checklist for safely enabling a new source. Does not implement parsers or manage ontology mappings.
+description: Use when evaluating a new biomedical data source (producing a structured report on access method, formats, node/relationship types, and update schedule), or when enabling/disabling sources in the CardioKB pipeline. Covers the src/main.py PARSERS dict, credential patterns, and the checklist for safely enabling a new source. Does not implement parsers or manage ontology mappings.
 ---
 
-You manage `config/databases.yaml`. Two workflows: **evaluate** a new data source, or **enable/disable** an existing one.
+You evaluate new data sources and manage source registration in the CardioKB pipeline.
 
 ---
 
 ## Evaluating a New Data Source
 
-Produce a structured JSON report. Use the `biomedical-database-advisor` agent for research if needed.
+Produce a structured JSON report:
 
 ```json
 {
@@ -46,86 +46,60 @@ Produce a structured JSON report. Use the `biomedical-database-advisor` agent fo
 
 ## Enabling a New Source
 
-Before setting `enabled: true`:
-1. Confirm a parser class exists for this source in `src/parsers/` and is registered in `src/main.py` `PARSERS`.
-2. Confirm all required credentials are present in `.env` (see Environment Variables table in `docs/reference.md`).
-3. Add the source entry to `databases.yaml` if it is not already there.
-4. Add `ontology_mappings.yaml` entries for the parser's TSV outputs — node entries before relationship entries.
-5. Register the parser in `PARSER_CLASS_MAP` in `src/main.py` with key equal to the `databases.yaml` key (= `data/processed/` subdirectory name).
-6. Activate any new OWL class or object property names in `config/project.yaml` `node_types` / `edge_types`.
+Before enabling a new source in the pipeline:
 
-**Never delete entries** — set `enabled: false` to disable.
+1. Confirm a parser class exists in `src/parsers/` and is imported in `src/parsers/__init__.py`.
+2. Confirm the parser is registered in `src/main.py` PARSERS dict with instantiation in `create_parsers()`.
+3. Confirm all required credentials are present in `.env`.
+4. Confirm `src/ontology_configs.py` has entries for the parser's TSV outputs — node entries first, then relationship entries.
+5. Confirm any new OWL classes or properties are defined in `ontology/cardiokb_ontology.rdf` and listed in `ontology/schema/node_types.txt` / `edge_types.txt`.
 
-### databases.yaml Entry Format
+### Credential Patterns
 
-```yaml
-databases:
-  <source_name>:                        # must match PARSERS key and ontology_mappings.yaml prefix
-    enabled: true
-    args:
-      api_key_env: MY_API_KEY           # _env: read from environment; plain key: literal value
-    notes: "What nodes/edges this source provides."
+CardioKB parsers read credentials directly from environment variables via `os.environ.get()`:
+```python
+self.username = username or os.environ.get('DRUGBANK_USERNAME')
+self.password = password or os.environ.get('DRUGBANK_PASSWORD')
 ```
 
-The `source_name` key controls the `data/processed/<source_name>/` directory and the `ontology_mappings.yaml` key prefix. Changing it breaks the pipeline.
+Credentials are stored in `.env` (not committed). Template in `.env.example`.
 
-### Credential Injection (`_env` Convention)
+### Source Name Consistency
 
-`_resolve_env_vars()` in `main.py` walks `args` recursively at startup:
-- `api_key_env: MY_KEY` → `api_key: <value of $MY_KEY>` passed to parser constructor
-- The `_env` suffix is stripped; the constructor must declare the stripped parameter name
-- Works in nested dicts: `mysql_config: {user_env: MYSQL_USERNAME}` → `mysql_config: {user: <value>}`
+The following must all use the same string key:
+- `src/main.py` PARSERS dict key
+- `src/ontology_configs.py` entry prefix
+- `data/processed/<source_name>/` subdirectory
 
-**Critical**: if the environment variable is not set, the value resolves to `None` and a `WARNING` is logged at startup — there is no hard error. This silently breaks parsers that pass credentials to external clients (e.g., psycopg2 treats `None` as empty string and fails authentication). Only add `_env` keys for env vars that are guaranteed to be present.
-
-**Source name vs. directory**: some parsers override `self.source_name` internally. This affects `data/raw/<source_name>/` paths but does NOT affect `data/processed/` — the processed subdirectory always uses the `databases.yaml` key. Use the `databases.yaml` key in both `PARSER_CLASS_MAP` and `ontology_mappings.yaml` prefix.
+Changing any one without updating the others breaks the pipeline silently.
 
 ---
 
-## Database-Specific References
+## CardioKB's 24 Active Sources
 
-- **NCBI Gene** (FTP):
-  - [references/ncbigene.md](references/ncbigene.md) — operational reference (source file format, dbXrefs expansion, gotchas).
-
-- **UBERON** (OBO, public):
-  - [references/uberon.md](references/uberon.md) — operational reference (two-file OBO setup, term filtering criteria, xref prefixes, gotchas). Use this when understanding the human-slim filter, cross-referencing MeSH/FMA/BTO IDs, or debugging obonet parsing.
-
-- **Bgee** (FTP):
-  - [references/bgee.md](references/bgee.md) — operational reference (source file columns, anatomy ID prefixes, tissue_filter usage, gotchas). Use this when configuring the source URL, understanding UBERON vs. CL entries, or cross-referencing gene identifiers.
-
-- **AOP-DB** (MySQL):
-  - [references/aopdb.md](references/aopdb.md) — operational reference (setup, tables, processing, gotchas).
-
-- **DrugCentral** (PostgreSQL):
-  - [references/drugcentral_eval.json](references/drugcentral_eval.json) — structured evaluation artifact (node/relationship types, update schedule, parser output status). Use this for agent handoff or confirming what the database provides before writing mappings.
-  - [references/drugcentral.md](references/drugcentral.md) — operational reference (setup, schema tables, inspect queries, known gotchas). Use this when installing, querying, or debugging the PostgreSQL instance.
-
-- **DrugBank** (HTTP download, academic account required):
-  - [references/drugbank.md](references/drugbank.md) — operational reference (setup, full XML structure, drug-links CSV columns, known gotchas). Use this when configuring credentials, understanding available fields, or debugging download/parse issues.
-
-- **Gene Ontology** (OBO + GAF, public):
-  - [references/gene_ontology.md](references/gene_ontology.md) — operational reference (two-file setup, OBO term fields, GAF 2.2 column layout, Entrez mapping dependency, gotchas). Use this when understanding BP/MF/CC namespace routing, GOA annotation filtering, or debugging the gene-symbol→Entrez dependency.
-
-- **MeSH** (XML, public):
-  - [references/mesh.md](references/mesh.md) — operational reference (year-based filename scheme, XML descriptor structure, C23.888 subtree filter, gotchas). Use this when updating the candidate year list, understanding tree number filtering, or debugging lxml streaming parse.
-
-- **CollectTRI** (OmniPath REST API, public):
-  - [references/collectri.md](references/collectri.md) — operational reference (OmniPath endpoint, TSV response columns, stimulation/inhibition flags, gotchas). Use this when understanding the databases.yaml key spelling, the genesymbols parameter, or cross-referencing TF symbols to Entrez IDs.
-
-- **BindingDB** (bulk TSV download, public):
-  - [references/bindingdb.md](references/bindingdb.md) — operational reference (monthly-stamped ZIP URL discovery, key TSV columns, human-target and DrugBank ID filters, gotchas). Use this when the fallback URL needs updating, adding affinity columns, or cross-referencing target names to gene identifiers.
-
-- **Evolutionary Rate Covariation** (Dryad RDS, public; bot-protected download):
-  - [references/evolutionary_rate_covariation.md](references/evolutionary_rate_covariation.md) — operational reference (Playwright + range-request download strategy, RDS matrix format, ft_threshold derivation, gotchas). Use this when the Dryad file_stream ID needs updating, understanding the Fisher-transformed score threshold, or debugging Playwright/pyreadr dependencies.
-
-- **CTD** (bulk TSV, public):
-  - [references/ctd.md](references/ctd.md) — operational reference (no-header gzip TSV, 11-column layout, InteractionActions pipe-token format, MeSH ID normalization, gotchas). Use this when understanding the expression action filter, the ChemicalID prefix normalization, or the multi-organism scope of the data.
-
-- **Reactome** (TSV, public):
-  - [references/reactome.md](references/reactome.md) — operational reference (two no-header TSV files, pathway ID format, all-levels hierarchical roll-up, species filter, gotchas). Use this when understanding the R-HSA- prefix, the all-levels redundancy in gene-pathway mappings, or the additional files that exist but are not loaded.
-
-- **Disease Ontology** (OBO, public):
-  - [references/disease_ontology.md](references/disease_ontology.md) — operational reference (OBO term fields, two-stage slim+scope filter, slim-terms.tsv generation via generate_disease_slim.py, xref prefixes, gotchas). Use this when regenerating the disease slim, understanding the UMLS_CUI prefix format, or diagnosing why terms are excluded by the scope or slim filters.
-
-- **MEDLINE** (NCBI E-utilities via EDirect CLI; optional API key):
-  - [references/medline.md](references/medline.md) — operational reference (EDirect install, two-phase PMID-fetch + Fisher stats algorithm, three output tables, prerequisites from disease_ontology/mesh/uberon parsers, gotchas). Use this when diagnosing missing EDirect tools, understanding the force-refresh PMID cache, or interpreting the per-relation-type corpus.
+| # | Source | Parser | Access |
+|---|--------|--------|--------|
+| 1 | ClinicalTrials.gov | ClinicalTrialsParser | Public API v2 |
+| 2 | ClinPGx | ClinPGxParser | Public API |
+| 3 | NCBI Gene | NCBIGeneParser | Public FTP |
+| 4 | DoRothEA | DoRothEAParser | Public API |
+| 5 | DrugBank | DrugBankParser | XML file |
+| 6 | Disease Ontology | DiseaseOntologyParser | Public OBO |
+| 7 | Gene Ontology | GeneOntologyParser | Public OBO+GAF |
+| 8 | Uberon | UberonParser | Public OBO |
+| 9 | MeSH | MeSHParser | Public XML |
+| 10 | SIDER | SIDERParser | Public (legacy) |
+| 11 | LINCS L1000 | LINCS1000Parser | Public (legacy) |
+| 12 | MEDLINE | MEDLINECooccurrenceParser | Public (legacy) |
+| 13 | DrugCentral | DrugCentralParser | Public |
+| 14 | BindingDB | BindingDBParser | Public TSV |
+| 15 | PubTator Central | PubTatorParser | Public FTP |
+| 16 | CTD | CTDParser | Public TSV |
+| 17 | Bgee | BgeeParser | Public FTP |
+| 18 | Jensen TISSUES | JensenTissuesParser | Public |
+| 19 | HPO | HPOParser | Public OBO |
+| 20 | Reactome | ReactomeParser | Public TSV |
+| 21 | STRING | STRINGParser | Public |
+| 22 | OpenTargets | OpenTargetsParser | Public |
+| 23 | HGNC Families | HGNCFamiliesParser | Public |
+| 24 | ClinVar | ClinVarParser | Public FTP |

@@ -1,0 +1,738 @@
+version: "1.0"
+project_name: "CardioKB"
+base_iri: "http://example.org/ontologies/kg.owl#"
+ontology_path: "../template/data/ontology/ontology.rdf"
+populated_ontology_path: "../template/data/output/ontology_populated.rdf"
+
+sources:
+  ncbigene_genes:
+    type: tsv
+    path: ../template/data/processed/ncbigene/genes.tsv
+  disease_ontology_slim_terms:
+    type: tsv
+    path: ../template/data/processed/disease_ontology/slim_terms.tsv
+  drugcentral_drugs:
+    type: tsv
+    path: ../template/data/processed/drugcentral/drugs.tsv
+  drugcentral_pharmacologic_classes:
+    type: tsv
+    path: ../template/data/processed/drugcentral/pharmacologic_classes.tsv
+  ctd_chemical_nodes:
+    type: tsv
+    path: ../template/data/processed/ctd/chemical_nodes.tsv
+  drugbank_drugs:
+    type: tsv
+    path: ../template/data/processed/drugbank/drugs.tsv
+  gene_ontology_biological_process_nodes:
+    type: tsv
+    path: ../template/data/processed/gene_ontology/biological_process_nodes.tsv
+  gene_ontology_molecular_function_nodes:
+    type: tsv
+    path: ../template/data/processed/gene_ontology/molecular_function_nodes.tsv
+  gene_ontology_cellular_component_nodes:
+    type: tsv
+    path: ../template/data/processed/gene_ontology/cellular_component_nodes.tsv
+  uberon_uberon_nodes:
+    type: tsv
+    path: ../template/data/processed/uberon/uberon_nodes.tsv
+  mesh_symptom_nodes:
+    type: tsv
+    path: ../template/data/processed/mesh/symptom_nodes.tsv
+  hpo_phenotype_nodes:
+    type: tsv
+    path: ../template/data/processed/hpo/phenotype_nodes.tsv
+  sider_side_effect_nodes:
+    type: tsv
+    path: ../template/data/processed/sider/side_effect_nodes.tsv
+  reactome_pathways:
+    type: tsv
+    path: ../template/data/processed/reactome/pathways.tsv
+  dorothea_transcription_factors:
+    type: tsv
+    path: ../template/data/processed/dorothea/transcription_factors.tsv
+  hgnc_gene_family_nodes:
+    type: tsv
+    path: ../template/data/processed/hgnc/gene_family_nodes.tsv
+  clinvar_variant_nodes:
+    type: tsv
+    path: ../template/data/processed/clinvar/variant_nodes.tsv
+  clinicaltrials_trial_nodes:
+    type: tsv
+    path: ../template/data/processed/clinicaltrials/trial_nodes.tsv
+  clinpgx_drug_label_nodes:
+    type: tsv
+    path: ../template/data/processed/clinpgx/drug_label_nodes.tsv
+  opentargets_target_disease_associations:
+    type: tsv
+    path: ../template/data/processed/opentargets/target_disease_associations.tsv
+  pubtator_pubtator_gene_disease:
+    type: tsv
+    path: ../template/data/processed/pubtator/pubtator_gene_disease.tsv
+  string_gene_interactions:
+    type: tsv
+    path: ../template/data/processed/string/gene_interactions.tsv
+  lincs_compound_gene_up:
+    type: tsv
+    path: ../template/data/processed/lincs/compound_gene_up.tsv
+  lincs_compound_gene_down:
+    type: tsv
+    path: ../template/data/processed/lincs/compound_gene_down.tsv
+  gene_ontology_gene_bp_associations:
+    type: tsv
+    path: ../template/data/processed/gene_ontology/gene_bp_associations.tsv
+  gene_ontology_gene_mf_associations:
+    type: tsv
+    path: ../template/data/processed/gene_ontology/gene_mf_associations.tsv
+  gene_ontology_gene_cc_associations:
+    type: tsv
+    path: ../template/data/processed/gene_ontology/gene_cc_associations.tsv
+  reactome_ncbi_gene_pathway_relationships:
+    type: tsv
+    path: ../template/data/processed/reactome/ncbi_gene_pathway_relationships.tsv
+  hpo_gene_phenotype_associations:
+    type: tsv
+    path: ../template/data/processed/hpo/gene_phenotype_associations.tsv
+  bgee_anatomy_expresses_gene:
+    type: tsv
+    path: ../template/data/processed/bgee/anatomy_expresses_gene.tsv
+  hgnc_gene_family_associations:
+    type: tsv
+    path: ../template/data/processed/hgnc/gene_family_associations.tsv
+  clinvar_variant_gene_associations:
+    type: tsv
+    path: ../template/data/processed/clinvar/variant_gene_associations.tsv
+  clinvar_variant_disease_associations:
+    type: tsv
+    path: ../template/data/processed/clinvar/variant_disease_associations.tsv
+  dorothea_tf_gene_interactions:
+    type: tsv
+    path: ../template/data/processed/dorothea/tf_gene_interactions.tsv
+  bindingdb_drug_binds_gene:
+    type: tsv
+    path: ../template/data/processed/bindingdb/drug_binds_gene.tsv
+  drugbank_drug_gene_edges:
+    type: tsv
+    path: ../template/data/processed/drugbank/drug_gene_edges.tsv
+  ctd_chemical_increases_expression:
+    type: tsv
+    path: ../template/data/processed/ctd/chemical_increases_expression.tsv
+  ctd_chemical_decreases_expression:
+    type: tsv
+    path: ../template/data/processed/ctd/chemical_decreases_expression.tsv
+  drugcentral_drug_in_class:
+    type: tsv
+    path: ../template/data/processed/drugcentral/drug_in_class.tsv
+  sider_drug_side_effect_associations:
+    type: tsv
+    path: ../template/data/processed/sider/drug_side_effect_associations.tsv
+  clinicaltrials_trial_disease_associations:
+    type: tsv
+    path: ../template/data/processed/clinicaltrials/trial_disease_associations.tsv
+  clinicaltrials_trial_intervention_associations:
+    type: tsv
+    path: ../template/data/processed/clinicaltrials/trial_intervention_associations.tsv
+  clinpgx_gene_drug_interactions:
+    type: tsv
+    path: ../template/data/processed/clinpgx/gene_drug_interactions.tsv
+
+node_mappings:
+  - name: ncbigene.genes
+    source: ncbigene_genes
+    mode: create
+    target_class: Gene
+    iri_column: GeneID
+    properties:
+      - column: GeneID
+        property: geneId
+      - column: Symbol
+        property: geneSymbol
+      - column: Synonyms
+        property: synonyms
+      - column: description
+        property: description
+      - column: chromosome
+        property: chromosome
+      - column: type_of_gene
+        property: geneType
+      - column: Full_name_from_nomenclature_authority
+        property: geneName
+      - column: xref_HGNC
+        property: xrefHGNC
+      - column: xref_Ensembl
+        property: xrefEnsembl
+      - column: xref_MIM
+        property: xrefOMIM
+  - name: disease_ontology.slim_terms
+    source: disease_ontology_slim_terms
+    mode: create
+    target_class: Disease
+    iri_column: doid
+    properties:
+      - column: doid
+        property: xrefDiseaseOntology
+      - column: disease_name
+        property: diseaseName
+      - column: definition
+        property: definition
+      - column: umls_cui
+        property: xrefUmlsCUI
+      - column: symptoms
+        property: symptoms
+  - name: drugcentral.drugs
+    source: drugcentral_drugs
+    mode: create
+    target_class: Drug
+    iri_column: struct_id
+    properties:
+      - column: struct_id
+        property: drugId
+      - column: drugbank_id
+        property: xrefDrugBank
+      - column: drug_name
+        property: commonName
+      - column: molecular_weight
+        property: molecularWeight
+      - column: molecular_formula
+        property: molecularFormula
+      - column: smiles
+        property: smiles
+      - column: inchi
+        property: inchi
+      - column: inchikey
+        property: inchiKey
+      - column: mesh_id
+        property: xrefMeSH
+      - column: umls_cui
+        property: xrefUmlsCUI
+      - column: chebi_id
+        property: xrefCheBI
+      - column: pubchem_cid
+        property: xrefPubChem
+      - column: cas_number
+        property: xrefCAS
+  - name: drugcentral.pharmacologic_classes
+    source: drugcentral_pharmacologic_classes
+    mode: create
+    target_class: PharmacologicClass
+    iri_column: pharma_class_id
+    properties:
+      - column: pharma_class_id
+        property: classId
+      - column: pharma_class_name
+        property: className
+      - column: pharma_class_code
+        property: classCode
+  - name: ctd.chemical_nodes
+    source: ctd_chemical_nodes
+    mode: create
+    target_class: Drug
+    iri_column: chemical_id
+    properties:
+      - column: chemical_id
+        property: drugId
+      - column: chemical_name
+        property: commonName
+      - column: mesh_id
+        property: xrefMeSH
+  - name: drugbank.drugs
+    source: drugbank_drugs
+    mode: create
+    target_class: Drug
+    iri_column: drugbank_id
+    properties:
+      - column: drugbank_id
+        property: xrefDrugBank
+      - column: drug_name
+        property: commonName
+      - column: cas_number
+        property: xrefCAS
+      - column: pubchem_cid
+        property: xrefPubChem
+      - column: chembl_id
+        property: xrefChEMBL
+      - column: chebi_id
+        property: xrefChEBI
+      - column: kegg_drug_id
+        property: xrefKEGG
+      - column: drugDescription
+        property: description
+      - column: drugType
+        property: drugType
+      - column: drugGroups
+        property: drugGroups
+      - column: drugCategories
+        property: drugCategories
+      - column: drugIndication
+        property: drugIndication
+      - column: drugMechanism
+        property: mechanismOfAction
+      - column: drugHalfLife
+        property: halfLife
+      - column: molecularFormula
+        property: molecularFormula
+      - column: molecularWeight
+        property: molecularWeight
+      - column: smiles
+        property: smiles
+      - column: inchi
+        property: inchi
+      - column: inchikey
+        property: inchiKey
+  - name: gene_ontology.biological_process_nodes
+    source: gene_ontology_biological_process_nodes
+    mode: create
+    target_class: BiologicalProcess
+    iri_column: go_id
+    properties:
+      - column: go_id
+        property: geneOntologyId
+      - column: name
+        property: processName
+      - column: definition
+        property: definition
+  - name: gene_ontology.molecular_function_nodes
+    source: gene_ontology_molecular_function_nodes
+    mode: create
+    target_class: MolecularFunction
+    iri_column: go_id
+    properties:
+      - column: go_id
+        property: geneOntologyId
+      - column: name
+        property: functionName
+      - column: definition
+        property: definition
+  - name: gene_ontology.cellular_component_nodes
+    source: gene_ontology_cellular_component_nodes
+    mode: create
+    target_class: CellularComponent
+    iri_column: go_id
+    properties:
+      - column: go_id
+        property: geneOntologyId
+      - column: name
+        property: componentName
+      - column: definition
+        property: definition
+  - name: uberon.uberon_nodes
+    source: uberon_uberon_nodes
+    mode: create
+    target_class: BodyPart
+    iri_column: uberon_id
+    properties:
+      - column: uberon_id
+        property: xrefUberon
+      - column: uberon_name
+        property: bodyPartName
+      - column: synonyms
+        property: synonyms
+      - column: definition
+        property: definition
+      - column: mesh_id
+        property: xrefMeSH
+      - column: fma_id
+        property: xrefFMA
+      - column: is_human
+        property: isHuman
+  - name: mesh.symptom_nodes
+    source: mesh_symptom_nodes
+    mode: create
+    target_class: Symptom
+    iri_column: mesh_id
+    properties:
+      - column: mesh_id
+        property: xrefMeSH
+      - column: mesh_name
+        property: symptomName
+  - name: hpo.phenotype_nodes
+    source: hpo_phenotype_nodes
+    mode: create
+    target_class: Phenotype
+    iri_column: hp_id
+    properties:
+      - column: hp_id
+        property: xrefHPO
+      - column: hp_name
+        property: phenotypeName
+      - column: definition
+        property: definition
+      - column: synonyms
+        property: synonyms
+      - column: is_a
+        property: isA
+  - name: sider.side_effect_nodes
+    source: sider_side_effect_nodes
+    mode: create
+    target_class: SideEffect
+    iri_column: umls_id
+    properties:
+      - column: umls_id
+        property: xrefUmlsCUI
+      - column: side_effect_name
+        property: sideEffectName
+  - name: reactome.pathways
+    source: reactome_pathways
+    mode: create
+    target_class: Pathway
+    iri_column: reactome_id
+    properties:
+      - column: reactome_id
+        property: pathwayId
+      - column: pathway_name
+        property: pathwayName
+      - column: species
+        property: species
+  - name: dorothea.transcription_factors
+    source: dorothea_transcription_factors
+    mode: create
+    target_class: TranscriptionFactor
+    iri_column: tf_symbol
+    properties:
+      - column: tf_symbol
+        property: tfSymbol
+  - name: hgnc.gene_family_nodes
+    source: hgnc_gene_family_nodes
+    mode: create
+    target_class: GeneFamily
+    iri_column: family_id
+    properties:
+      - column: family_id
+        property: familyId
+      - column: family_name
+        property: familyName
+  - name: clinvar.variant_nodes
+    source: clinvar_variant_nodes
+    mode: create
+    target_class: Variant
+    iri_column: allele_id
+    properties:
+      - column: allele_id
+        property: alleleId
+      - column: variation_id
+        property: variantId
+      - column: variant_name
+        property: variantName
+      - column: variant_type
+        property: variantType
+      - column: clinical_significance
+        property: clinicalSignificance
+      - column: review_status
+        property: reviewStatus
+      - column: chromosome
+        property: chromosome
+      - column: start_pos
+        property: startPosition
+      - column: stop_pos
+        property: stopPosition
+      - column: ref_allele
+        property: refAllele
+      - column: alt_allele
+        property: altAllele
+      - column: dbsnp_id
+        property: xrefDbSNP
+  - name: clinicaltrials.trial_nodes
+    source: clinicaltrials_trial_nodes
+    mode: create
+    target_class: ClinicalTrial
+    iri_column: nct_id
+    properties:
+      - column: nct_id
+        property: trialId
+      - column: brief_title
+        property: title
+      - column: official_title
+        property: officialTitle
+      - column: status
+        property: status
+      - column: phase
+        property: phase
+      - column: study_type
+        property: studyType
+      - column: start_date
+        property: startDate
+      - column: completion_date
+        property: completionDate
+      - column: sponsor
+        property: sponsor
+      - column: enrollment
+        property: enrollment
+  - name: clinpgx.drug_label_nodes
+    source: clinpgx_drug_label_nodes
+    mode: create
+    target_class: DrugLabel
+    iri_column: guideline_id
+    properties:
+      - column: guideline_id
+        property: labelId
+      - column: guideline_name
+        property: labelName
+      - column: url
+        property: url
+      - column: version
+        property: version
+
+relationship_mappings:
+  - name: opentargets.target_disease_associations
+    source: opentargets_target_disease_associations
+    relationship: geneAssociatesWithDisease
+    subject:
+      class_name: Gene
+      column: gene_symbol
+      match_property: geneSymbol
+    object:
+      class_name: Disease
+      column: disease_id
+      match_property: xrefDiseaseOntology
+  - name: pubtator.pubtator_gene_disease
+    source: pubtator_pubtator_gene_disease
+    relationship: geneAssociatesWithDisease
+    subject:
+      class_name: Gene
+      column: gene_symbol
+      match_property: geneSymbol
+    object:
+      class_name: Disease
+      column: disease_id
+      match_property: xrefDiseaseOntology
+  - name: string.gene_interactions
+    source: string_gene_interactions
+    relationship: geneInteractsWithGene
+    subject:
+      class_name: Gene
+      column: gene1
+      match_property: geneSymbol
+    object:
+      class_name: Gene
+      column: gene2
+      match_property: geneSymbol
+  - name: lincs.compound_gene_up
+    source: lincs_compound_gene_up
+    relationship: compoundUpregulatesGene
+    subject:
+      class_name: Drug
+      column: compound_name
+      match_property: commonName
+    object:
+      class_name: Gene
+      column: gene_symbol
+      match_property: geneSymbol
+  - name: lincs.compound_gene_down
+    source: lincs_compound_gene_down
+    relationship: compoundDownregulatesGene
+    subject:
+      class_name: Drug
+      column: compound_name
+      match_property: commonName
+    object:
+      class_name: Gene
+      column: gene_symbol
+      match_property: geneSymbol
+  - name: gene_ontology.gene_bp_associations
+    source: gene_ontology_gene_bp_associations
+    relationship: geneParticipatesInBiologicalProcess
+    subject:
+      class_name: Gene
+      column: gene_symbol
+      match_property: geneSymbol
+    object:
+      class_name: BiologicalProcess
+      column: go_id
+      match_property: geneOntologyId
+  - name: gene_ontology.gene_mf_associations
+    source: gene_ontology_gene_mf_associations
+    relationship: geneHasMolecularFunction
+    subject:
+      class_name: Gene
+      column: gene_symbol
+      match_property: geneSymbol
+    object:
+      class_name: MolecularFunction
+      column: go_id
+      match_property: geneOntologyId
+  - name: gene_ontology.gene_cc_associations
+    source: gene_ontology_gene_cc_associations
+    relationship: geneAssociatedWithCellularComponent
+    subject:
+      class_name: Gene
+      column: gene_symbol
+      match_property: geneSymbol
+    object:
+      class_name: CellularComponent
+      column: go_id
+      match_property: geneOntologyId
+  - name: reactome.ncbi_gene_pathway_relationships
+    source: reactome_ncbi_gene_pathway_relationships
+    relationship: geneInPathway
+    subject:
+      class_name: Gene
+      column: ncbi_gene_id
+      match_property: geneId
+    object:
+      class_name: Pathway
+      column: reactome_id
+      match_property: pathwayId
+  - name: hpo.gene_phenotype_associations
+    source: hpo_gene_phenotype_associations
+    relationship: geneAssociatesWithPhenotype
+    subject:
+      class_name: Gene
+      column: ncbi_gene_id
+      match_property: geneId
+    object:
+      class_name: Phenotype
+      column: hp_id
+      match_property: xrefHPO
+  - name: bgee.anatomy_expresses_gene
+    source: bgee_anatomy_expresses_gene
+    relationship: bodyPartOverexpressesGene
+    subject:
+      class_name: BodyPart
+      column: uberon_id
+      match_property: xrefUberon
+    object:
+      class_name: Gene
+      column: ensembl_gene_id
+      match_property: xrefEnsembl
+  - name: hgnc.gene_family_associations
+    source: hgnc_gene_family_associations
+    relationship: geneInFamily
+    subject:
+      class_name: Gene
+      column: ncbi_gene_id
+      match_property: geneId
+    object:
+      class_name: GeneFamily
+      column: family_id
+      match_property: familyId
+  - name: clinvar.variant_gene_associations
+    source: clinvar_variant_gene_associations
+    relationship: variantInGene
+    subject:
+      class_name: Variant
+      column: allele_id
+      match_property: alleleId
+    object:
+      class_name: Gene
+      column: gene_id
+      match_property: geneId
+  - name: clinvar.variant_disease_associations
+    source: clinvar_variant_disease_associations
+    relationship: variantAssociatedWithDisease
+    subject:
+      class_name: Variant
+      column: variant_id
+      match_property: alleleId
+    object:
+      class_name: Disease
+      column: umls_cui
+      match_property: xrefUmlsCUI
+  - name: dorothea.tf_gene_interactions
+    source: dorothea_tf_gene_interactions
+    relationship: transcriptionFactorInteractsWithGene
+    subject:
+      class_name: TranscriptionFactor
+      column: tf_symbol
+      match_property: tfSymbol
+    object:
+      class_name: Gene
+      column: target_gene
+      match_property: geneSymbol
+  - name: bindingdb.drug_binds_gene
+    source: bindingdb_drug_binds_gene
+    relationship: chemicalBindsGene
+    subject:
+      class_name: Drug
+      column: drugbank_id
+      match_property: xrefDrugBank
+    object:
+      class_name: Gene
+      column: gene_symbol
+      match_property: geneSymbol
+  - name: drugbank.drug_gene_edges
+    source: drugbank_drug_gene_edges
+    relationship: drugBindsGene
+    subject:
+      class_name: Drug
+      column: drugbank_id
+      match_property: xrefDrugBank
+    object:
+      class_name: Gene
+      column: gene_symbol
+      match_property: geneSymbol
+  - name: ctd.chemical_increases_expression
+    source: ctd_chemical_increases_expression
+    relationship: chemicalIncreasesExpression
+    subject:
+      class_name: Drug
+      column: chemId
+      match_property: drugId
+    object:
+      class_name: Gene
+      column: geneSymbol
+      match_property: geneSymbol
+  - name: ctd.chemical_decreases_expression
+    source: ctd_chemical_decreases_expression
+    relationship: chemicalDecreasesExpression
+    subject:
+      class_name: Drug
+      column: chemId
+      match_property: drugId
+    object:
+      class_name: Gene
+      column: geneSymbol
+      match_property: geneSymbol
+  - name: drugcentral.drug_in_class
+    source: drugcentral_drug_in_class
+    relationship: compoundInPharmacologicClass
+    subject:
+      class_name: Drug
+      column: struct_id
+      match_property: drugId
+    object:
+      class_name: PharmacologicClass
+      column: pharma_class_id
+      match_property: classId
+  - name: sider.drug_side_effect_associations
+    source: sider_drug_side_effect_associations
+    relationship: compoundCausesSideEffect
+    subject:
+      class_name: Drug
+      column: pubchem_cid
+      match_property: xrefPubChem
+    object:
+      class_name: SideEffect
+      column: umls_id
+      match_property: xrefUmlsCUI
+  - name: clinicaltrials.trial_disease_associations
+    source: clinicaltrials_trial_disease_associations
+    relationship: STUDIES_CONDITION
+    subject:
+      class_name: ClinicalTrial
+      column: nct_id
+      match_property: trialId
+    object:
+      class_name: Disease
+      column: condition
+      match_property: diseaseName
+  - name: clinicaltrials.trial_intervention_associations
+    source: clinicaltrials_trial_intervention_associations
+    relationship: TESTS_INTERVENTION
+    subject:
+      class_name: ClinicalTrial
+      column: nct_id
+      match_property: trialId
+    object:
+      class_name: Drug
+      column: intervention_name
+      match_property: commonName
+  - name: clinpgx.gene_drug_interactions
+    source: clinpgx_gene_drug_interactions
+    relationship: AFFECTS_RESPONSE_TO
+    subject:
+      class_name: Gene
+      column: gene_symbol
+      match_property: geneSymbol
+    object:
+      class_name: Drug
+      column: drug_name
+      match_property: commonName

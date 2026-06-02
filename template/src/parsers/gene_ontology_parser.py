@@ -162,7 +162,7 @@ class GeneOntologyParser(BaseParser):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _find_obo_file(self) -> "Path | None":
+    def _find_obo_file(self):
         """Return the path to the best available OBO file."""
         for fname in (self.GO_OBO_FILE, self.GO_BASIC_OBO):
             p = self.source_dir / fname

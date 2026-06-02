@@ -45,6 +45,15 @@ from parsers import (
     ReactomeParser,
     UberonParser,
     StringParser,
+    ClinicalTrialsParser,
+    ClinPGxParser,
+    OpenTargetsParser,
+    HPOParser,
+    HGNCFamiliesParser,
+    ClinVarParser,
+    SIDERParser,
+    LINCSParser,
+    PubTatorParser,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,6 +81,15 @@ PARSERS = {
     "evolutionary_rate_covariation": EvolutionaryRateCovariationParser,
     "reactome": ReactomeParser,
     "string": StringParser,
+    "clinicaltrials": ClinicalTrialsParser,
+    "clinpgx": ClinPGxParser,
+    "opentargets": OpenTargetsParser,
+    "hpo": HPOParser,
+    "hgnc": HGNCFamiliesParser,
+    "clinvar": ClinVarParser,
+    "sider": SIDERParser,
+    "lincs": LINCSParser,
+    "pubtator": PubTatorParser,
 }
 
 # ---------------------------------------------------------------------------
@@ -174,40 +192,59 @@ def export_tsv(parsed_data, processed_dir):
 
 
 def populate(project_config, databases, ontology_mappings, processed_dir):
-    """Populate the OWL ontology from processed TSV files using ista."""
-    from ontology.populator import OntologyPopulator
+    """Populate the OWL ontology from processed TSV files using ista's C++ DataLoader.
+
+    Uses owl2.DataLoader with the native YAML mapping spec
+    (config/ista_mapping.yaml) instead of the legacy FlatFileDatabaseParser.
+    The C++ DataLoader builds a hash-based individual lookup cache before
+    processing relationships, making it orders of magnitude faster for large
+    graphs (~435K+ individuals).
+    """
+    import time
+    from ista import owl2
+    from ista.populate import TqdmProgressHandler, _serialize
 
     base_dir = Path(__file__).parent.parent
-    ontology_path = base_dir / project_config["ontology"]["base_file"]
+    mapping_path = base_dir.parent / "config" / "ista_mapping.yaml"
     output_rdf = base_dir / project_config["ontology"]["populated_output"]
     output_rdf.parent.mkdir(parents=True, exist_ok=True)
 
-    populator = OntologyPopulator(
-        ontology_path=str(ontology_path),
-        data_dir=str(processed_dir),
-        ontology_mappings=ontology_mappings,
-    )
+    if not mapping_path.exists():
+        raise FileNotFoundError(
+            f"ista mapping file not found: {mapping_path}\n"
+            f"Run generate_ista_mapping.py to create it from ontology_mappings.yaml."
+        )
 
-    for key, config in ontology_mappings.items():
-        if config.get("skip", False):
-            continue
-        source_name = key.split(".")[0]
-        db_config = databases.get(source_name)
-        if not isinstance(db_config, dict) or not db_config.get("enabled", False):
-            logger.info(f"{source_name} not enabled in databases.yaml, skipping {key}")
-            continue
-        if not (processed_dir / source_name).exists():
-            logger.info(f"No data for {source_name}, skipping {key}")
-            continue
-        logger.info(f"Populating {key}...")
-        try:
-            populator.populate_from_config(key)
-        except Exception:
-            logger.exception(f"Error populating {key}")
+    logger.info(f"Populating ontology via ista DataLoader: {mapping_path}")
 
-    populator.save_ontology(str(output_rdf))
-    populator.print_stats()
+    onto = owl2.Ontology()
+    loader = owl2.DataLoader(onto)
+    loader.load_mapping_spec(str(mapping_path.resolve()))
+    loader.auto_declare_schema()
+
+    spec = loader.mapping_spec()
+    n_node = len(spec.get_all_node_mappings())
+    n_rel = len(spec.relationship_mappings)
+    logger.info(f"Sources: {len(spec.sources)} | Node mappings: {n_node} | "
+                f"Relationship mappings: {n_rel}")
+
+    progress = TqdmProgressHandler()
+    loader.set_progress_callback(progress.on_progress)
+
+    t0 = time.time()
+    stats = loader.execute()
+    elapsed = time.time() - t0
+
+    logger.info(stats.summary())
+    logger.info(f"Population completed in {elapsed:.1f}s")
+
+    if stats.errors > 0:
+        for msg in stats.error_messages:
+            logger.error(f"  {msg}")
+
+    _serialize(onto, str(output_rdf), "rdfxml")
     logger.info(f"Saved populated ontology: {output_rdf}")
+    logger.info(onto.get_statistics())
     return str(output_rdf)
 
 
@@ -308,6 +345,8 @@ Examples:
         logger.info("Running extract step only")
         parsed_data = extract(enabled_databases, project_config, raw_dir, force_download=args.force_download)
         export_tsv(parsed_data, processed_dir)
+        from drug_merger import merge_drug_nodes
+        merge_drug_nodes(processed_dir)
         logger.info("Extract step complete.")
         return
 
@@ -326,6 +365,11 @@ Examples:
     logger.info(f"Starting {project_config.get('display_name', 'KG')} pipeline")
     parsed_data = extract(enabled_databases, project_config, raw_dir, force_download=args.force_download)
     export_tsv(parsed_data, processed_dir)
+
+    # Post-extract: merge Drug nodes across DrugBank/DrugCentral/CTD
+    from drug_merger import merge_drug_nodes
+    merge_drug_nodes(processed_dir)
+
     populate(project_config, enabled_databases, ontology_mappings, processed_dir)
     export_graph(project_config, output_dir)
     logger.info("Pipeline complete.")
