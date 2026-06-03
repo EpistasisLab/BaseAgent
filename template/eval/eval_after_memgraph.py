@@ -95,6 +95,70 @@ def parse_domain_range(base_rdf: Path) -> dict[str, dict]:
     return domain_range
 
 
+def parse_subclass_map(base_rdf: Path) -> dict[str, set[str]]:
+    """Return {child_class: set_of_ancestor_classes} from the ontology.
+
+    Covers rdfs:subClassOf with a named class and owl:equivalentClass
+    intersections (e.g. Drug ≡ Chemical ∩ restriction → Drug is a Chemical).
+    """
+    tree = ET.parse(base_rdf)
+    direct_parents: dict[str, set[str]] = defaultdict(set)
+
+    for cls in tree.getroot():
+        if cls.tag != f"{{{OWL_NS}}}Class":
+            continue
+        about = cls.get(RDF_ABOUT, "")
+        local = _local_name(about)
+        if not local:
+            continue
+        for elem in cls:
+            if elem.tag == f"{{{RDFS_NS}}}subClassOf":
+                resource = elem.get(RDF_RESOURCE, "")
+                if resource:
+                    parent = _local_name(resource)
+                    if parent:
+                        direct_parents[local].add(parent)
+            elif elem.tag == f"{{{OWL_NS}}}equivalentClass":
+                for equiv_cls in elem:
+                    if equiv_cls.tag != f"{{{OWL_NS}}}Class":
+                        continue
+                    for intersection in equiv_cls:
+                        if intersection.tag != f"{{{OWL_NS}}}intersectionOf":
+                            continue
+                        for member in intersection:
+                            if member.tag == f"{{{RDF_NS}}}Description":
+                                resource = member.get(RDF_ABOUT, "")
+                                if resource:
+                                    parent = _local_name(resource)
+                                    if parent:
+                                        direct_parents[local].add(parent)
+
+    ancestors: dict[str, set[str]] = {}
+
+    def _get_ancestors(name: str, visiting: frozenset) -> set[str]:
+        if name in ancestors:
+            return ancestors[name]
+        if name in visiting:
+            return set()
+        visiting = visiting | {name}
+        result: set[str] = set()
+        for parent in direct_parents.get(name, set()):
+            result.add(parent)
+            result.update(_get_ancestors(parent, visiting))
+        ancestors[name] = result
+        return result
+
+    for cls_name in list(direct_parents):
+        _get_ancestors(cls_name, frozenset())
+
+    return ancestors
+
+
+def _type_violates(actual_type: str, expected_type: str, subclass_ancestors: dict[str, set[str]]) -> bool:
+    """Return True if actual_type is not a valid subtype of expected_type."""
+    return actual_type != expected_type and expected_type not in subclass_ancestors.get(actual_type, set())
+
+
 def load_graph_csvs() -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
     """Return (nodes_by_type, edges_by_type) from nodes_*.csv and edges_*.csv."""
     nodes: dict[str, pd.DataFrame] = {}
@@ -120,6 +184,7 @@ def compute_tier1_metrics(
     nodes: dict[str, pd.DataFrame],
     edges: dict[str, pd.DataFrame],
     domain_range: dict[str, dict],
+    subclass_ancestors: dict[str, set[str]],
     mappings: dict,
     project: dict,
 ) -> list[dict]:
@@ -185,17 +250,20 @@ def compute_tier1_metrics(
 
         violations = 0
         if expected_domain:
-            actual_domains = edf["start_id"].dropna().astype(str).map(node_id_to_type)
-            violations += int((actual_domains.notna() & (actual_domains != expected_domain)).sum())
+            actual_domains = edf["start_id"].dropna().astype(str).map(node_id_to_type).dropna()
+            violations += int(actual_domains.apply(
+                lambda t: _type_violates(t, expected_domain, subclass_ancestors)
+            ).sum())
         if expected_range:
-            actual_ranges = edf["end_id"].dropna().astype(str).map(node_id_to_type)
-            violations += int((actual_ranges.notna() & (actual_ranges != expected_range)).sum())
+            actual_ranges = edf["end_id"].dropna().astype(str).map(node_id_to_type).dropna()
+            violations += int(actual_ranges.apply(
+                lambda t: _type_violates(t, expected_range, subclass_ancestors)
+            ).sum())
 
         metrics.append(_metric(
             "Domain/range constraint violation count", "integer", violations,
             tier=1, edge_type=edge_type,
             expected_domain=expected_domain, expected_range=expected_range,
-            note="exact-type check only; subclass relationships not resolved",
         ))
 
     # --- Relationship resolution rate per mapping ---
@@ -608,13 +676,14 @@ def main() -> None:
 
     print(f"Parsing domain/range from {base_rdf}", flush=True)
     domain_range = parse_domain_range(base_rdf) if base_rdf.exists() else {}
+    subclass_ancestors = parse_subclass_map(base_rdf) if base_rdf.exists() else {}
 
     baseline = None
     if args.baseline and Path(args.baseline).exists():
         baseline = json.loads(Path(args.baseline).read_text())
 
     all_metrics: list[dict] = []
-    all_metrics.extend(compute_tier1_metrics(nodes, edges, domain_range, mappings, project))
+    all_metrics.extend(compute_tier1_metrics(nodes, edges, domain_range, subclass_ancestors, mappings, project))
     current_counts = {
         **{f"nodes_{t}": len(df) for t, df in nodes.items()},
         **{f"edges_{t}": len(df) for t, df in edges.items()},
