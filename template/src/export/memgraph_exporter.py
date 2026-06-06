@@ -227,37 +227,84 @@ class MemgraphExporter:
         """
         Extract edges (object property assertions) grouped by relationship type.
 
+        Streams the source RDF/XML files with lxml iterparse instead of
+        iterating the in-memory rdflib graph.  This avoids data loss caused
+        by rdflib silently dropping triples when memory is constrained (e.g.
+        right after the ista populate step on large ontologies).
+
         Returns:
             Tuple of:
               - Dict mapping relationship name -> list of edge dicts
               - Dict mapping relationship name -> (start_node_type, end_node_type)
         """
-        edges_by_type = defaultdict(list)
+        from lxml import etree
 
-        individual_uris = set(
-            str(s) for s in self.graph.subjects(RDF.type, OWL.NamedIndividual)
-        )
+        OWL_NS = "http://www.w3.org/2002/07/owl#"
+        RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+        NAMED_INDIVIDUAL_TAG = f"{{{OWL_NS}}}NamedIndividual"
+        RDF_ABOUT = f"{{{RDF_NS}}}about"
+        RDF_RESOURCE = f"{{{RDF_NS}}}resource"
 
-        def _local_name(uri):
+        SKIP_NAMESPACES = frozenset([
+            RDF_NS,
+            "http://www.w3.org/2000/01/rdf-schema#",
+            OWL_NS,
+            "http://www.w3.org/2001/XMLSchema#",
+            "http://www.w3.org/XML/1998/namespace",
+        ])
+
+        node_ids = set(self._id_to_type.keys())
+
+        def _local_name(uri: str) -> str:
             if "#" in uri:
                 return uri.rsplit("#", 1)[1]
             if "/" in uri:
                 return uri.rsplit("/", 1)[1]
             return uri
 
-        for s, p, o in self.graph:
-            s_str, p_str, o_str = str(s), str(p), str(o)
+        edges_by_type: dict[str, list] = defaultdict(list)
+        seen: set[tuple[str, str, str]] = set()
 
-            if any(p_str.startswith(ns) for ns in [str(RDF), str(RDFS), str(OWL)]):
-                continue
+        for rdf_file in self.rdf_files:
+            context = etree.iterparse(rdf_file, events=("end",),
+                                      tag=NAMED_INDIVIDUAL_TAG)
+            for _, elem in context:
+                about = elem.get(RDF_ABOUT)
+                if about is None:
+                    elem.clear()
+                    continue
+                subject_id = _local_name(about)
+                if subject_id not in node_ids:
+                    elem.clear()
+                    continue
 
-            if s_str not in individual_uris or o_str not in individual_uris:
-                continue
+                for child in elem:
+                    resource = child.get(RDF_RESOURCE)
+                    if resource is None:
+                        continue
+                    tag = child.tag
+                    if tag[0] == "{":
+                        ns, local = tag[1:].split("}", 1)
+                        if ns in SKIP_NAMESPACES:
+                            continue
+                    else:
+                        local = tag
 
-            edges_by_type[_local_name(p_str)].append({
-                "start_id": _local_name(s_str),
-                "end_id": _local_name(o_str),
-            })
+                    object_id = _local_name(resource)
+                    if object_id not in node_ids:
+                        continue
+
+                    triple = (subject_id, local, object_id)
+                    if triple in seen:
+                        continue
+                    seen.add(triple)
+
+                    edges_by_type[local].append({
+                        "start_id": subject_id,
+                        "end_id": object_id,
+                    })
+
+                elem.clear()
 
         rel_endpoint_types: dict[str, tuple[str, str]] = {}
         for rel_type, edges in edges_by_type.items():
