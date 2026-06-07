@@ -306,18 +306,29 @@ class MemgraphExporter:
 
                 elem.clear()
 
-        rel_endpoint_types: dict[str, tuple[str, str]] = {}
+        rel_endpoint_types: dict[str, list[tuple[str, str]]] = {}
         for rel_type, edges in edges_by_type.items():
-            start_type = end_type = None
+            start_types: set[str] = set()
+            end_types: set[str] = set()
             for edge in edges:
-                if not start_type:
-                    start_type = self._id_to_type.get(edge["start_id"])
-                if not end_type:
-                    end_type = self._id_to_type.get(edge["end_id"])
-                if start_type and end_type:
-                    break
-            if start_type and end_type:
-                rel_endpoint_types[rel_type] = (start_type, end_type)
+                st = self._id_to_type.get(edge["start_id"])
+                et = self._id_to_type.get(edge["end_id"])
+                if st:
+                    start_types.add(st)
+                if et:
+                    end_types.add(et)
+            if len(start_types) <= 1 and len(end_types) <= 1:
+                rel_endpoint_types[rel_type] = [
+                    (start_types.pop() if start_types else "",
+                     end_types.pop() if end_types else "")
+                ]
+            else:
+                pairs: set[tuple[str, str]] = set()
+                for edge in edges:
+                    st = self._id_to_type.get(edge["start_id"], "")
+                    et = self._id_to_type.get(edge["end_id"], "")
+                    pairs.add((st, et))
+                rel_endpoint_types[rel_type] = sorted(pairs)
 
         return dict(edges_by_type), rel_endpoint_types
 
@@ -371,7 +382,7 @@ class MemgraphExporter:
         self,
         node_columns: dict[str, list[str]],
         rel_types: list[str],
-        rel_endpoint_types: dict[str, tuple[str, str]],
+        rel_endpoint_types: dict[str, list[tuple[str, str]]],
         edge_prop_columns: dict[str, list[str]],
     ) -> Path:
         """
@@ -380,6 +391,11 @@ class MemgraphExporter:
         MATCH clauses use node labels inferred from the id→type map so that
         Memgraph can use label+property indexes and avoid full scans, which
         prevents transaction timeouts on large edge files.
+
+        For edge types with mixed endpoint labels (e.g. end nodes are both
+        SideEffect and Disease), emits one LOAD CSV block per label pair.
+        Each block uses a labeled MATCH so only matching rows produce edges;
+        rows that don't match a given label are silently skipped.
 
         Returns:
             Path to the written ``import.cypher`` file.
@@ -417,24 +433,27 @@ class MemgraphExporter:
 
         # Edge LOAD CSV blocks — use labeled MATCH to hit label+property indexes
         for rel_type in rel_types:
-            start_label, end_label = rel_endpoint_types.get(rel_type, ("", ""))
-            start_match = f"MATCH (a:{start_label} {{id: row.start_id}})" if start_label else "MATCH (a {id: row.start_id})"
-            end_match = f"MATCH (b:{end_label} {{id: row.end_id}})" if end_label else "MATCH (b {id: row.end_id})"
+            endpoint_pairs = rel_endpoint_types.get(rel_type, [("", "")])
             extra_cols = edge_prop_columns.get(rel_type, [])
             if extra_cols:
                 prop_map = ", ".join(f"{c}: row.{c}" for c in extra_cols)
                 create = f"CREATE (a)-[:{rel_type} {{{prop_map}}}]->(b);"
             else:
                 create = f"CREATE (a)-[:{rel_type}]->(b);"
-            lines += [
-                f"// Edges: {rel_type}",
-                f'LOAD CSV FROM "{_MEMGRAPH_IMPORT_PREFIX}/edges_{rel_type}.csv"'
-                " WITH HEADER AS row",
-                start_match,
-                end_match,
-                create,
-                "",
-            ]
+
+            for i, (start_label, end_label) in enumerate(endpoint_pairs):
+                start_match = f"MATCH (a:{start_label} {{id: row.start_id}})" if start_label else "MATCH (a {id: row.start_id})"
+                end_match = f"MATCH (b:{end_label} {{id: row.end_id}})" if end_label else "MATCH (b {id: row.end_id})"
+                suffix = f" ({start_label or '?'}->{end_label or '?'})" if len(endpoint_pairs) > 1 else ""
+                lines += [
+                    f"// Edges: {rel_type}{suffix}",
+                    f'LOAD CSV FROM "{_MEMGRAPH_IMPORT_PREFIX}/edges_{rel_type}.csv"'
+                    " WITH HEADER AS row",
+                    start_match,
+                    end_match,
+                    create,
+                    "",
+                ]
 
         with open(filepath, "w") as f:
             f.write("\n".join(lines))

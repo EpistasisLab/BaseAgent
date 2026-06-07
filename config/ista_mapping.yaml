@@ -226,12 +226,9 @@ node_mappings:
         property: classCode
   - name: ctd.chemical_nodes
     source: ctd_chemical_nodes
-    mode: enrich
+    mode: create
     target_class: Drug
     iri_column: chemical_id
-    match:
-      source_column: chemical_name
-      target_property: commonName
     properties:
       - column: chemical_id
         property: drugId
@@ -241,12 +238,9 @@ node_mappings:
         property: xrefMeSH
   - name: drugbank.drugs
     source: drugbank_drugs
-    mode: enrich
+    mode: create
     target_class: Drug
     iri_column: drugbankId
-    match:
-      source_column: commonName
-      target_property: commonName
     properties:
       - column: drugbankId
         property: xrefDrugBank

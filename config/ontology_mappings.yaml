@@ -79,7 +79,7 @@ drugcentral.pharmacologic_classes:
     pharma_class_name: className
     pharma_class_code: classCode
 
-# CTD - Chemicals (drugs) — enrich existing DrugCentral Drug nodes by commonName
+# CTD - Chemicals (drugs)
 ctd.chemical_nodes:
   data_type: node
   owl_class: Drug
@@ -87,16 +87,12 @@ ctd.chemical_nodes:
   source_filename: chemical_nodes.tsv
   id_column: chemical_id
   id_prefix: CTD
-  merge: true
-  merge_column:
-    source: chemical_name
-    target: commonName
   property_map:
     chemical_id: drugId
     chemical_name: commonName
     mesh_id: xrefMeSH
 
-# DrugBank - Drugs (enrich existing DrugCentral Drug nodes by commonName)
+# DrugBank - Drugs
 drugbank.drugs:
   data_type: node
   owl_class: Drug
@@ -104,10 +100,6 @@ drugbank.drugs:
   source_filename: drugs.tsv
   id_column: drugbankId
   id_prefix: DrugBank
-  merge: true
-  merge_column:
-    source: commonName
-    target: commonName
   property_map:
     drugbankId: xrefDrugBank
     commonName: commonName
