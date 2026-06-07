@@ -53,6 +53,8 @@ class OntologyPopulator:
         self.mysql_config = mysql_config
         self.ontology = None
         self._pending_edge_props: dict[str, dict] = {}
+        # Populated lazily during _collect_edge_props; must not be called before populate_nodes completes.
+        self._lookup_cache: dict[str, dict] = {}
         if ontology_mappings is None:
             raise ValueError("ontology_mappings must be provided. Load it with load_config() from main.py.")
         self.ontology_mappings = ontology_mappings
@@ -235,6 +237,25 @@ class OntologyPopulator:
             logger.error(f"Failed to populate relationships for {source_name}.{relationship_type}: {e}")
             return False
 
+    def _build_lookup(self, prop_name: str) -> dict:
+        """Build a {str(value): individual} dict for a data property, cached by prop_name."""
+        if prop_name in self._lookup_cache:
+            return self._lookup_cache[prop_name]
+        lookup = {}
+        for ind in self.ontology.individuals():
+            val = getattr(ind, prop_name, None)
+            if val is None:
+                continue
+            key = str(val[0] if isinstance(val, list) else val)
+            if key in lookup:
+                logger.warning(
+                    f"Duplicate value for {prop_name}: {key!r} — "
+                    f"overwriting {lookup[key]} with {ind}"
+                )
+            lookup[key] = ind
+        self._lookup_cache[prop_name] = lookup
+        return lookup
+
     def _collect_edge_props(
         self,
         rel_type_name: str,
@@ -265,22 +286,21 @@ class OntologyPopulator:
         with open(source_path, newline="") as f:
             reader = csv_mod.DictReader(f, delimiter=delimiter)
             edge_property_columns = [c for c in reader.fieldnames if c not in (sub_col, obj_col)]
+            sub_lookup = self._build_lookup(sub_match_prop)
+            obj_lookup = self._build_lookup(obj_match_prop)
             for row in reader:
-                subjects = self.ontology.search(**{sub_match_prop: row[sub_col]})
-                objects = self.ontology.search(**{obj_match_prop: row[obj_col]})
-                if len(subjects) > 1 or len(objects) > 1:
+                sm = sub_lookup.get(row[sub_col])
+                om = obj_lookup.get(row[obj_col])
+                if sm is None or om is None:
                     logger.warning(
-                        f"Ambiguous ID in {source_filename}: "
-                        f"{row[sub_col]!r} matched {len(subjects)} subjects, "
-                        f"{row[obj_col]!r} matched {len(objects)} objects — skipping row"
+                        f"Unresolved ID in {source_filename}: "
+                        f"subject={row[sub_col]!r}, object={row[obj_col]!r} — skipping row"
                     )
                     continue
-                for sm in subjects:
-                    for om in objects:
-                        record = {"start_id": sm.name, "end_id": om.name}
-                        for col in edge_property_columns:
-                            record[col] = row.get(col, "")
-                        rows.append(record)
+                record = {"start_id": sm.name, "end_id": om.name}
+                for col in edge_property_columns:
+                    record[col] = row.get(col, "")
+                rows.append(record)
 
         if rows:
             existing = self._pending_edge_props.setdefault(
