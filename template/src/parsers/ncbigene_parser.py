@@ -145,6 +145,10 @@ class NCBIGeneParser(BaseParser):
         # Expand dbXrefs → one column per source database
         genes_df = self._expand_dbxrefs(genes_df)
 
+        # Remove ENSG IDs from non-canonical gene entries (LOC/LINC, readthrough, uncharacterized, overlapping transcripts)
+        if "xref_Ensembl" in genes_df.columns:
+            genes_df = self._deduplicate_ensembl_ids(genes_df)
+
         # Provenance label
         genes_df["source_database"] = "NCBI Gene"
 
@@ -209,6 +213,32 @@ class NCBIGeneParser(BaseParser):
             if source:
                 result[source] = identifier
         return result
+
+    def _deduplicate_ensembl_ids(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Unconditionally clear xref_Ensembl from non-canonical gene entries:
+
+        - Symbol matches ``LOC\\d+`` or ``LINC\\d+``
+        - Description contains "uncharacterized" or "readthrough"
+        - Symbol ends with an antisense/overlapping-transcript suffix
+          (``-AS\\d+``, ``-OT\\d+``, ``-IT\\d+``)
+        """
+        ensg_col = "xref_Ensembl"
+        symbol_col = "Symbol"
+        desc_col = "description"
+
+        desc = df[desc_col].fillna("").str.strip()
+        is_loc           = df[symbol_col].str.fullmatch(r"LOC\d+|LINC\d+", na=False)
+        is_readthrough   = desc.str.contains("readthrough", case=False)
+        is_uncharacterized = desc.str.contains("uncharacterized", case=False)
+        is_overlap       = df[symbol_col].str.contains(r"-(?:AS|OT|IT)\d+$", na=False)
+        is_secondary     = is_loc | is_readthrough | is_uncharacterized | is_overlap
+
+        to_clear = is_secondary & df[ensg_col].notna()
+        df.loc[to_clear, ensg_col] = None
+
+        logger.info(f"Cleared xref_Ensembl from {to_clear.sum()} non-canonical gene(s)")
+        return df
 
     def _expand_dbxrefs(self, df: pd.DataFrame) -> pd.DataFrame:
         """
