@@ -96,7 +96,8 @@ class BgeeParser(BaseParser):
           2. Keep only 'present' expression calls.
           3. Keep only rows whose Anatomical entity ID starts with 'UBERON:'.
           4. Apply tissue_filter if configured.
-          5. Return anatomy_expresses_gene DataFrame.
+          5. Keep only rows with Expression score > 90.0.
+          6. Return anatomy_expresses_gene DataFrame.
 
         Returns:
             Dict with key 'anatomy_expresses_gene' → DataFrame of AeG edges.
@@ -142,6 +143,12 @@ class BgeeParser(BaseParser):
                     "%d records after tissue_filter.", len(present)
                 )
 
+            # ---- 4b. Keep only high expression score records -------------
+            present = present[present["Expression score"] > 90.0].copy()
+            logger.info(
+                "%d records after expression score > 90.0 filter.", len(present)
+            )
+
             if present.empty:
                 logger.warning("No records remain after filtering; returning empty.")
                 return {}
@@ -156,7 +163,6 @@ class BgeeParser(BaseParser):
                     "fdr": present["FDR"].values,
                     "expression_score": present["Expression score"].values,
                     "expression_rank": present["Expression rank"].values,
-                    "source": "Bgee",
                     "unbiased": True,
                     "sourceDatabase": "Bgee",
                 }
@@ -189,7 +195,6 @@ class BgeeParser(BaseParser):
                 "fdr": "False Discovery Rate",
                 "expression_score": "Expression score (0–100)",
                 "expression_rank": "Expression rank (lower = higher expression)",
-                "source": "Data source label ('Bgee')",
                 "unbiased": "Whether the edge is unbiased (True for Bgee)",
                 "sourceDatabase": "Source database name ('Bgee')",
             }
