@@ -1,0 +1,130 @@
+# CardioKB Project Configuration
+# Cardiovascular Disease Knowledge Graph
+
+project:
+  name: "cardiokb"
+  display_name: "CardioKB - Cardiovascular Knowledge Base"
+  version: "1.0.0"
+
+  disease_scope:
+    primary_terms:
+      - "heart failure"
+      - "coronary artery disease"
+      - "myocardial infarction"
+      - "atrial fibrillation"
+      - "cardiomyopathy"
+      - "aortic stenosis"
+      - "hypertension"
+      - "stroke"
+      - "atherosclerosis"
+      - "cardiac arrest"
+      - "ventricular tachycardia"
+      - "pulmonary hypertension"
+      - "heart valve disease"
+      - "endocarditis"
+      - "pericarditis"
+      - "aortic aneurysm"
+      - "peripheral artery disease"
+      - "deep vein thrombosis"
+      - "pulmonary embolism"
+      - "congenital heart disease"
+      - "arrhythmia"
+      - "angina pectoris"
+    doid_ids:
+      - "DOID:1287"   # cardiovascular system disease
+      - "DOID:114"    # heart disease
+      - "DOID:3393"   # coronary artery disease
+      - "DOID:5844"   # myocardial infarction
+      - "DOID:0060224" # atrial fibrillation
+      - "DOID:0050700" # cardiomyopathy
+      - "DOID:1712"   # aortic valve stenosis
+      - "DOID:10763"  # hypertension
+      - "DOID:6713"   # cerebrovascular disease
+    mesh_ids:
+      - "D002318"     # Cardiovascular Diseases
+      - "D006331"     # Heart Diseases
+      - "D003324"     # Coronary Artery Disease
+      - "D009203"     # Myocardial Infarction
+      - "D001281"     # Atrial Fibrillation
+      - "D006333"     # Heart Failure
+      - "D006973"     # Hypertension
+
+  data_filtering:
+    tissue_filter: null
+
+  ontology:
+    base_file: "data/ontology/ontology.rdf"
+    namespace: "http://example.org/ontologies/kg.owl"
+    populated_output: "data/output/ontology_populated.rdf"
+
+  graph_indexes:
+    Gene: ["geneSymbol", "xrefNcbiGene"]
+    Drug: ["commonName", "xrefDrugbank", "xrefMeSH"]
+    Disease: ["commonName", "xrefDiseaseOntology", "xrefUmlsCUI"]
+    Pathway: ["pathwayName", "pathwayId"]
+    BodyPart: ["commonName", "xrefUberon"]
+    Symptom: ["commonName", "xrefMeSH"]
+    TranscriptionFactor: ["TF"]
+    PharmacologicClass: ["commonName", "classId"]
+    BiologicalProcess: ["commonName", "geneOntologyId"]
+    MolecularFunction: ["commonName", "geneOntologyId"]
+    CellularComponent: ["commonName", "geneOntologyId"]
+    SideEffect: ["commonName", "xrefUmlsCUI"]
+    ClinicalTrial: ["trialId"]
+    DrugLabel: ["labelId"]
+    Phenotype: ["commonName", "xrefHPO"]
+    GeneFamily: ["familyName", "familyId"]
+    Variant: ["variantId", "commonName"]
+
+  node_types:
+    - Gene
+    - Drug
+    - Disease
+    - Pathway
+    - BiologicalProcess
+    - MolecularFunction
+    - CellularComponent
+    - BodyPart
+    - Symptom
+    - TranscriptionFactor
+    - PharmacologicClass
+    - SideEffect
+    - ClinicalTrial
+    - DrugLabel
+    - Phenotype
+    - GeneFamily
+    - Variant
+
+  edge_types:
+    - drugBindsGene
+    - transcriptionFactorInteractsWithGene
+    - geneParticipatesInBiologicalProcess
+    - geneHasMolecularFunction
+    - geneAssociatedWithCellularComponent
+    - compoundCausesSideEffect
+    - compoundUpregulatesGene
+    - compoundDownregulatesGene
+    - pharmacologicClassIncludesCompound
+    - drugTreatsDisease
+    - chemicalIncreasesExpression
+    - chemicalDecreasesExpression
+    - chemicalBindsGene
+    - bodyPartExpressesGene
+    - geneAssociatesWithDisease
+    - geneAssociatesWithPhenotype
+    - geneInPathway
+    - pathwayContainsGene
+    - geneInteractsWithGene
+    - geneInFamily
+    - familyContainsGene
+    - hasVariant
+    - variantInGene
+    - associatedWithVariant
+    - variantAssociatedWithDisease
+    - STUDIES_CONDITION
+    - TESTS_INTERVENTION
+    - AFFECTS_RESPONSE_TO
+    - diseaseAssociatesWithDisease
+    - diseasePresentsSymptom
+    - diseaseLocalizesToAnatomy
+    - diseaseResemblesDisease

@@ -1,0 +1,153 @@
+# CardioKB Database Configuration
+# Defines all data sources, their enabled status, and connection parameters.
+
+databases:
+  ncbigene:
+    enabled: true
+    args:
+      source_url: https://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Mammalia/Homo_sapiens.gene_info.gz
+    notes: Gene nodes from NCBI FTP. Disease-agnostic; provides the base Gene node set.
+
+  drugbank:
+    enabled: true
+    args:
+      source_url: https://go.drugbank.com/releases/{version}/downloads/all-drug-links
+      version: latest
+      username_env: DRUGBANK_USERNAME
+      password_env: DRUGBANK_PASSWORD
+    notes: Drug information and drug-gene binding. Requires free academic account.
+
+  dorothea:
+    enabled: true
+    args: {}
+    notes: DoRothEA/CollectTRI transcription factor regulatory network from OmniPath API.
+
+  disease_ontology:
+    enabled: true
+    args: {}
+    notes: Disease Ontology (DO) - Comprehensive ontology of human diseases.
+
+  gene_ontology:
+    enabled: true
+    args: {}
+    notes: GO terms and gene annotations. Provides BP, MF, CC nodes and gene associations.
+
+  uberon:
+    enabled: true
+    args: {}
+    notes: Uberon anatomy ontology. Provides BodyPart nodes.
+
+  mesh:
+    enabled: true
+    args:
+      base_url: https://nlmpubs.nlm.nih.gov/projects/mesh/MESH_FILES/xmlmesh/
+    notes: MeSH Symptom nodes from Signs and Symptoms subtree.
+
+  sider:
+    enabled: true
+    args: {}
+    notes: SIDER side effects database. Legacy — no live API alternative.
+
+  lincs:
+    enabled: true
+    args: {}
+    notes: LINCS L1000 compound-gene regulation. Legacy — clue.io requires institutional access.
+
+  medline:
+    enabled: false
+    args: {}
+    notes: MEDLINE co-occurrence. Legacy pinned GitHub commit.
+
+  drugcentral:
+    enabled: true
+    args:
+      pg_config:
+        host: unmtid-dbs.net
+        port: 5433
+        dbname: drugcentral
+        user_env: DC_USER
+        password_env: DC_PASSWORD
+    notes: Drug-disease, pharmacologic class, and adverse-effect data from DrugCentral.
+
+  pubtator:
+    enabled: true
+    args: {}
+    notes: PubTator Central literature mining. Gene-disease and disease-disease associations.
+
+  bindingdb:
+    enabled: true
+    args: {}
+    notes: BindingDB measured binding affinities. Provides chemicalBindsGene edges.
+
+  ctd:
+    enabled: true
+    args: {}
+    notes: CTD chemical-gene expression interactions.
+
+  bgee:
+    enabled: true
+    args:
+      source_url: https://www.bgee.org/ftp/current/download/calls/expr_calls/Homo_sapiens_expr_simple.tsv.gz
+      tissue_filter: null
+    notes: Bgee gene expression presence/absence calls by anatomy.
+
+  reactome:
+    enabled: true
+    args: {}
+    notes: Reactome curated pathway database.
+
+  string:
+    enabled: true
+    args:
+      min_combined_score: 700
+    notes: STRING protein-protein interactions (human, score >= 700).
+
+  # === CardioKB Custom Sources ===
+
+  clinicaltrials:
+    enabled: true
+    args: {}
+    notes: ClinicalTrials.gov API v2. Clinical trial nodes and disease/intervention edges.
+
+  clinpgx:
+    enabled: true
+    args: {}
+    notes: ClinPGx (PharmGKB successor) pharmacogenomics data via CPIC API.
+
+  opentargets:
+    enabled: true
+    args: {}
+    notes: OpenTargets gene-disease associations via Platform Parquet downloads.
+
+  hpo:
+    enabled: true
+    args: {}
+    notes: Human Phenotype Ontology. Phenotype nodes and gene-phenotype associations.
+
+  hgnc:
+    enabled: true
+    args: {}
+    notes: HGNC Gene Families. GeneFamily nodes and gene-family associations.
+
+  clinvar:
+    enabled: true
+    args: {}
+    notes: ClinVar variant data. Variant nodes and gene-variant/disease-variant edges.
+
+  # === Disabled/Removed Sources ===
+
+  disgenet:
+    enabled: false
+    args:
+      api_key_env: DISGENET_API_KEY
+    notes: "REMOVED: Redundant with OpenTargets + PubTator."
+
+  aopdb:
+    enabled: false
+    args: {}
+    notes: "REMOVED: Redundant with Reactome pathways."
+
+  jensen_tissues:
+    enabled: false
+    args: {}
+    notes: "REMOVED: BTO tissue names have zero overlap with Uberon; Bgee covers expression."
