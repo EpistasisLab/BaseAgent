@@ -164,3 +164,10 @@ databases:
       Gene IDs via the aliases file (Ensembl_EntrezGene source). Produces
       genes.tsv (Gene nodes) and gene_interactions.tsv (geneInteractsWithGene
       edges). Public source, no credentials required.
+  sider:
+    enabled: false
+    args: {}
+    notes: 'SIDER (Side Effect Resource) - Drug-side effect adverse reaction database.
+      Provides chemicalCausesEffect edges (drug → side effect via MedDRA).
+      Public source — no credentials required.
+

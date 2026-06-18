@@ -45,6 +45,7 @@ from parsers import (
     ReactomeParser,
     UberonParser,
     StringParser,
+    SIDERParser,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ PARSERS = {
     "evolutionary_rate_covariation": EvolutionaryRateCovariationParser,
     "reactome": ReactomeParser,
     "string": StringParser,
+    "sider": SIDERParser,
 }
 
 # ---------------------------------------------------------------------------
