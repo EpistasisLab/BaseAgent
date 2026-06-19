@@ -82,53 +82,41 @@ The `source_name` key controls the `data/processed/<source_name>/` directory and
 
 ---
 
-## Database-Specific References
+## Database-Specific Operational References
+Read these when working with the source, or when writing/debugging the parser. They cover source-specific details like file formats, node/edge types, identifier namespaces, cross-references, and gotchas.
 
-- **NCBI Gene** (FTP):
-  - [references/ncbigene.md](references/ncbigene.md) — operational reference (source file format, dbXrefs expansion, gotchas).
+- **NCBI Gene** (FTP) - [references/ncbigene.md](references/ncbigene.md)
 
-- **UBERON** (OBO, public):
-  - [references/uberon.md](references/uberon.md) — operational reference (two-file OBO setup, term filtering criteria, xref prefixes, gotchas). Use this when understanding the human-slim filter, cross-referencing MeSH/FMA/BTO IDs, or debugging obonet parsing.
+- **UBERON** (OBO, public) - [references/uberon.md](references/uberon.md)
 
-- **Bgee** (FTP):
-  - [references/bgee.md](references/bgee.md) — operational reference (source file columns, anatomy ID prefixes, tissue_filter usage, gotchas). Use this when configuring the source URL, understanding UBERON vs. CL entries, or cross-referencing gene identifiers.
+- **Bgee** (FTP) - [references/bgee.md](references/bgee.md)
 
-- **AOP-DB** (MySQL):
-  - [references/aopdb.md](references/aopdb.md) — operational reference (setup, tables, processing, gotchas).
+- **AOP-DB** (MySQL) - [references/aopdb.md](references/aopdb.md)
 
 - **DrugCentral** (PostgreSQL):
-  - [references/drugcentral_eval.json](references/drugcentral_eval.json) — structured evaluation artifact (node/relationship types, update schedule, parser output status). Use this for agent handoff or confirming what the database provides before writing mappings.
-  - [references/drugcentral.md](references/drugcentral.md) — operational reference (setup, schema tables, inspect queries, known gotchas). Use this when installing, querying, or debugging the PostgreSQL instance.
+  - [references/drugcentral_eval.json](references/drugcentral_eval.json)
+  - [references/drugcentral.md](references/drugcentral.md)
 
-- **DrugBank** (HTTP download, academic account required):
-  - [references/drugbank.md](references/drugbank.md) — operational reference (setup, full XML structure, drug-links CSV columns, known gotchas). Use this when configuring credentials, understanding available fields, or debugging download/parse issues.
+- **DrugBank** (HTTP download, academic account required) - [references/drugbank.md](references/drugbank.md)
 
-- **Gene Ontology** (OBO + GAF, public):
-  - [references/gene_ontology.md](references/gene_ontology.md) — operational reference (two-file setup, OBO term fields, GAF 2.2 column layout, Entrez mapping dependency, gotchas). Use this when understanding BP/MF/CC namespace routing, GOA annotation filtering, or debugging the gene-symbol→Entrez dependency.
+- **Gene Ontology** (OBO + GAF, public) - [references/gene_ontology.md](references/gene_ontology.md)
 
-- **MeSH** (XML, public):
-  - [references/mesh.md](references/mesh.md) — operational reference (year-based filename scheme, XML descriptor structure, C23.888 subtree filter, gotchas). Use this when updating the candidate year list, understanding tree number filtering, or debugging lxml streaming parse.
+- **MeSH** (XML, public) - [references/mesh.md](references/mesh.md)
 
-- **CollectTRI** (OmniPath REST API, public):
-  - [references/collectri.md](references/collectri.md) — operational reference (OmniPath endpoint, TSV response columns, stimulation/inhibition flags, gotchas). Use this when understanding the databases.yaml key spelling, the genesymbols parameter, or cross-referencing TF symbols to Entrez IDs.
+- **CollectTRI** (OmniPath REST API, public) - [references/collectri.md](references/collectri.md)
 
-- **BindingDB** (bulk TSV download, public):
-  - [references/bindingdb.md](references/bindingdb.md) — operational reference (monthly-stamped ZIP URL discovery, key TSV columns, human-target and DrugBank ID filters, gotchas). Use this when the fallback URL needs updating, adding affinity columns, or cross-referencing target names to gene identifiers.
+- **BindingDB** (bulk TSV download, public) - [references/bindingdb.md](references/bindingdb.md)
 
-- **Evolutionary Rate Covariation** (Dryad RDS, public; bot-protected download):
-  - [references/evolutionary_rate_covariation.md](references/evolutionary_rate_covariation.md) — operational reference (Playwright + range-request download strategy, RDS matrix format, ft_threshold derivation, gotchas). Use this when the Dryad file_stream ID needs updating, understanding the Fisher-transformed score threshold, or debugging Playwright/pyreadr dependencies.
+- **Evolutionary Rate Covariation** (Dryad RDS, public; bot-protected download) - [references/evolutionary_rate_covariation.md](references/evolutionary_rate_covariation.md)
 
-- **CTD Chemical** (bulk TSV, public):
-  - [references/ctd_chemical.md](references/ctd_chemical.md) — operational reference (no-header gzip TSV, 11-column layout, InteractionActions pipe-token format, MeSH ID normalization, gotchas). Use this when understanding the expression action filter, the ChemicalID prefix normalization, or the multi-organism scope of the data.
+- **CTD Chemical** (bulk TSV, public) - [references/ctd_chemical.md](references/ctd_chemical.md)
 
-- **Reactome** (TSV, public):
-  - [references/reactome.md](references/reactome.md) — operational reference (two no-header TSV files, pathway ID format, all-levels hierarchical roll-up, species filter, gotchas). Use this when understanding the R-HSA- prefix, the all-levels redundancy in gene-pathway mappings, or the additional files that exist but are not loaded.
+- **CTD Exposure** (bulk TSV, public) - [references/ctd_exposure.md](references/ctd_exposure.md)
 
-- **Disease Ontology** (OBO, public):
-  - [references/disease_ontology.md](references/disease_ontology.md) — operational reference (OBO term fields, two-stage slim+scope filter, slim-terms.tsv generation via generate_disease_slim.py, xref prefixes, gotchas). Use this when regenerating the disease slim, understanding the UMLS_CUI prefix format, or diagnosing why terms are excluded by the scope or slim filters.
+- **Reactome** (TSV, public) - [references/reactome.md](references/reactome.md)
 
-- **MEDLINE** (NCBI E-utilities via EDirect CLI; optional API key):
-  - [references/medline.md](references/medline.md) — operational reference (EDirect install, two-phase PMID-fetch + Fisher stats algorithm, three output tables, prerequisites from disease_ontology/mesh/uberon parsers, gotchas). Use this when diagnosing missing EDirect tools, understanding the force-refresh PMID cache, or interpreting the per-relation-type corpus.
+- **Disease Ontology** (OBO, public) - [references/disease_ontology.md](references/disease_ontology.md)
 
-- **SIDER** (bulk gzip TSV, public; static SIDER 4.1 release):
-  - [references/sider.md](references/sider.md) — operational reference (two-file setup, STITCH→PubChem CID conversion, PT filter, meddra inner join, cross-reference strategy against DrugCentral, gotchas). Use this when understanding why SIDER edges require DrugCentral to be enabled, debugging the STITCH ID format, or checking why side effects are dropped.
+- **MEDLINE** (NCBI E-utilities via EDirect CLI; optional API key) - [references/medline.md](references/medline.md)
+
+- **SIDER** (bulk gzip TSV, public; static SIDER 4.1 release) - [references/sider.md](references/sider.md)
