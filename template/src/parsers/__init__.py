@@ -20,7 +20,7 @@ from .mesh_parser import MeSHParser
 from .drugcentral_parser import DrugCentralParser
 from .bindingdb_parser import BindingDBParser
 from .bgee_parser import BgeeParser
-from .ctd_parser import CTDParser
+from .ctd_chemical_parser import CTDChemicalParser
 from .medline_parser import MEDLINEParser
 from .evolutionary_rate_covariation import EvolutionaryRateCovariationParser
 from .reactome_parser import ReactomeParser
@@ -44,7 +44,7 @@ __all__ = [
     'DrugCentralParser',
     'BindingDBParser',
     'BgeeParser',
-    'CTDParser',
+    'CTDChemicalParser',
     'MEDLINEParser',
     'EvolutionaryRateCovariationParser',
     'ReactomeParser',

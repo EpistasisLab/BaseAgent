@@ -35,7 +35,7 @@ databases:
     notes: 'BindingDB - Database of measured binding affinities. Provides chemicalBindsGene
       edges for drugs/chemicals with measured binding affinity to protein targets.
       Public source — no credentials required. Produces: drug_binds_gene.tsv.'
-  ctd:
+  ctd_chemical:
     enabled: true
     args: {}
     notes: 'CTD (Comparative Toxicogenomics Database) chemical-gene interactions.

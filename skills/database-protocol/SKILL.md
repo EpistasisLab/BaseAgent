@@ -118,8 +118,8 @@ The `source_name` key controls the `data/processed/<source_name>/` directory and
 - **Evolutionary Rate Covariation** (Dryad RDS, public; bot-protected download):
   - [references/evolutionary_rate_covariation.md](references/evolutionary_rate_covariation.md) — operational reference (Playwright + range-request download strategy, RDS matrix format, ft_threshold derivation, gotchas). Use this when the Dryad file_stream ID needs updating, understanding the Fisher-transformed score threshold, or debugging Playwright/pyreadr dependencies.
 
-- **CTD** (bulk TSV, public):
-  - [references/ctd.md](references/ctd.md) — operational reference (no-header gzip TSV, 11-column layout, InteractionActions pipe-token format, MeSH ID normalization, gotchas). Use this when understanding the expression action filter, the ChemicalID prefix normalization, or the multi-organism scope of the data.
+- **CTD Chemical** (bulk TSV, public):
+  - [references/ctd_chemical.md](references/ctd_chemical.md) — operational reference (no-header gzip TSV, 11-column layout, InteractionActions pipe-token format, MeSH ID normalization, gotchas). Use this when understanding the expression action filter, the ChemicalID prefix normalization, or the multi-organism scope of the data.
 
 - **Reactome** (TSV, public):
   - [references/reactome.md](references/reactome.md) — operational reference (two no-header TSV files, pathway ID format, all-levels hierarchical roll-up, species filter, gotchas). Use this when understanding the R-HSA- prefix, the all-levels redundancy in gene-pathway mappings, or the additional files that exist but are not loaded.

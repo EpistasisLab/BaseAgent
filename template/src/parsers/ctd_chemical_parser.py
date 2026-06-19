@@ -23,7 +23,7 @@ from .base_parser import BaseParser
 logger = logging.getLogger(__name__)
 
 
-class CTDParser(BaseParser):
+class CTDChemicalParser(BaseParser):
     """
     Parser for CTD (Comparative Toxicogenomics Database).
 

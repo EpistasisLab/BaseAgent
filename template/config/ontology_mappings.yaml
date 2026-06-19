@@ -354,7 +354,7 @@ mappings:
   # ---------------------------------------------------------------------------
   # CTD - Chemical Information
   # ---------------------------------------------------------------------------
-  ctd.chemical_nodes:
+  ctd_chemical.chemical_nodes:
     data_type: node
     node_type: Drug
     source_filename: chemical_nodes.tsv
@@ -722,7 +722,7 @@ mappings:
   # ---------------------------------------------------------------------------
   # CTD - Chemical-Gene Expression Modulation Relationships
   # ---------------------------------------------------------------------------
-  ctd.chemical_increases_expression:
+  ctd_chemical.chemical_increases_expression:
     data_type: relationship
     relationship_type: chemicalIncreasesExpression
     parse_config:
@@ -741,7 +741,7 @@ mappings:
     source_filename: chemical_increases_expression.tsv
     skip: false
 
-  ctd.chemical_decreases_expression:
+  ctd_chemical.chemical_decreases_expression:
     data_type: relationship
     relationship_type: chemicalDecreasesExpression
     parse_config:
