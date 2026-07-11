@@ -12,7 +12,7 @@ BaseAgent takes a disease (e.g., Alzheimer's disease, cardiovascular disease) an
 4. Maps parsed data to OWL node and edge types
 5. Generates Cypher import scripts and CSV files for Memgraph
 
-See [alzkb.ipynb](alzkb.ipynb) and [cardiokb.ipynb](cardiokb.ipynb) for end-to-end examples.
+See [alzkb.ipynb](alzkb.ipynb) and [parkinson.ipynb](parkinson.ipynb) for end-to-end examples.
 
 ## Features
 
